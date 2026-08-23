@@ -4,60 +4,102 @@ import { FEATURED_PRODUCTS } from '../data';
 
 // 1. Environment Configuration with specified fallback variables
 const getEnvVar = (key: string): string => {
-  if (typeof window !== 'undefined') {
-    const win = window as unknown as Record<string, string | undefined>;
-    if (win[key]) return win[key] as string;
-    if (win[`ENV_${key}`]) return win[`ENV_${key}`] as string;
+  try {
+    if (typeof window !== 'undefined') {
+      const win = window as unknown as Record<string, string | undefined>;
+      if (win[key]) return win[key] as string;
+      if (win[`ENV_${key}`]) return win[`ENV_${key}`] as string;
+    }
+    const metaEnv = (import.meta as unknown as { env?: Record<string, string> }).env;
+    if (metaEnv) {
+      if (metaEnv[key]) return metaEnv[key];
+      if (metaEnv[`VITE_${key}`]) return metaEnv[`VITE_${key}`];
+    }
+  } catch {
+    // Ignore environment read errors in restricted contexts
   }
-  const metaEnv = (import.meta as unknown as { env?: Record<string, string> }).env;
-  if (metaEnv && metaEnv[key]) return metaEnv[key];
-  if (metaEnv && metaEnv[`VITE_${key}`]) return metaEnv[`VITE_${key}`];
   return '';
 };
 
-const SUPABASE_URL: string =
-  (typeof window !== 'undefined' && (window as unknown as { ENV_SUPABASE_URL?: string }).ENV_SUPABASE_URL) ||
-  getEnvVar('SUPABASE_URL') ||
-  'YOUR_SUPABASE_PROJECT_URL';
+const rawUrl = getEnvVar('SUPABASE_URL');
+const rawKey = getEnvVar('SUPABASE_ANON_KEY');
 
-const SUPABASE_ANON_KEY: string =
-  (typeof window !== 'undefined' && (window as unknown as { ENV_SUPABASE_ANON_KEY?: string }).ENV_SUPABASE_ANON_KEY) ||
-  getEnvVar('SUPABASE_ANON_KEY') ||
-  'YOUR_SUPABASE_ANON_KEY';
+const SUPABASE_URL: string = rawUrl || '';
+const SUPABASE_ANON_KEY: string = rawKey || '';
 
-// Check if credentials have been replaced with real project keys
+// Validate whether Supabase credentials are valid and live
 export const isSupabaseConfigured = (): boolean => {
-  return (
-    SUPABASE_URL !== 'YOUR_SUPABASE_PROJECT_URL' &&
-    SUPABASE_ANON_KEY !== 'YOUR_SUPABASE_ANON_KEY' &&
-    SUPABASE_URL.startsWith('http') &&
-    Boolean(SUPABASE_ANON_KEY)
-  );
+  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) return false;
+  if (
+    SUPABASE_URL === 'YOUR_SUPABASE_PROJECT_URL' ||
+    SUPABASE_ANON_KEY === 'YOUR_SUPABASE_ANON_KEY'
+  ) {
+    return false;
+  }
+  try {
+    const parsed = new URL(SUPABASE_URL);
+    return (parsed.protocol === 'http:' || parsed.protocol === 'https:') && Boolean(SUPABASE_ANON_KEY);
+  } catch {
+    return false;
+  }
 };
 
-// Safe initialization supporting both CDN window.supabase and npm client
-const initSupabaseClient = (): SupabaseClient => {
-  if (typeof window !== 'undefined' && (window as unknown as { supabase?: { createClient: (url: string, key: string) => SupabaseClient } }).supabase?.createClient) {
+// Safe Supabase client initialization that NEVER throws on startup
+const createSafeSupabaseClient = (): SupabaseClient => {
+  if (isSupabaseConfigured()) {
     try {
-      return (window as unknown as { supabase: { createClient: (url: string, key: string) => SupabaseClient } }).supabase.createClient(
-        SUPABASE_URL,
-        SUPABASE_ANON_KEY
-      );
-    } catch {
-      // fallback to npm package
+      // Check if global CDN client exists
+      if (
+        typeof window !== 'undefined' &&
+        (window as unknown as { supabase?: { createClient: (url: string, key: string) => SupabaseClient } }).supabase?.createClient
+      ) {
+        return (window as unknown as { supabase: { createClient: (url: string, key: string) => SupabaseClient } }).supabase.createClient(
+          SUPABASE_URL,
+          SUPABASE_ANON_KEY
+        );
+      }
+
+      // Use npm package SDK
+      return createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+        auth: {
+          persistSession: true,
+          autoRefreshToken: true,
+        },
+      });
+    } catch (err) {
+      console.warn('Could not initialize live Supabase client, falling back to safe local mock:', err);
     }
   }
 
-  // Fallback to npm package SDK
-  return createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-    auth: {
-      persistSession: true,
-      autoRefreshToken: true,
+  // Safe Fallback Mock Client if Supabase is unconfigured or invalid URL
+  // This completely prevents fatal "Invalid URL" unhandled crashes on Vercel
+  const safeMockQueryBuilder = {
+    select: () => safeMockQueryBuilder,
+    insert: () => safeMockQueryBuilder,
+    update: () => safeMockQueryBuilder,
+    delete: () => safeMockQueryBuilder,
+    eq: () => safeMockQueryBuilder,
+    ilike: () => safeMockQueryBuilder,
+    or: () => safeMockQueryBuilder,
+    limit: () => safeMockQueryBuilder,
+    single: async () => ({ data: null, error: null }),
+    then: (resolve: (val: { data: unknown[]; error: null }) => void) => {
+      resolve({ data: [], error: null });
     },
-  });
+  };
+
+  const mockClient = {
+    from: () => safeMockQueryBuilder,
+    auth: {
+      getSession: async () => ({ data: { session: null }, error: null }),
+      onAuthStateChange: () => ({ data: { subscription: { unsubscribe: () => {} } } }),
+    },
+  } as unknown as SupabaseClient;
+
+  return mockClient;
 };
 
-export const supabase = initSupabaseClient();
+export const supabase: SupabaseClient = createSafeSupabaseClient();
 
 // Helper function to map a DB product or merge with rich UI metadata
 export const mapDbProductToUiProduct = (dbItem: DbProduct): Product => {
