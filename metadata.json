@@ -1,0 +1,6 @@
+{
+  "name": "AFINBO - Precision Fiber Optic Equipment",
+  "description": "High quality fiber optic tools, testing instruments, and calibration services.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

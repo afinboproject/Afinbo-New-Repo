@@ -1,0 +1,144 @@
+import React from 'react';
+import { Shield, MessageSquare, Linkedin, Twitter } from 'lucide-react';
+
+interface FooterProps {
+  onOpenCategory: (categoryName: string) => void;
+  onOpenContact: () => void;
+}
+
+export const Footer: React.FC<FooterProps> = ({ onOpenCategory, onOpenContact }) => {
+  return (
+    <footer className="bg-slate-50 border-t border-slate-200/60 pt-12 pb-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        
+        {/* Main 4-column Footer Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 mb-12">
+          
+          {/* Column 1: Brand Info */}
+          <div>
+            <span className="text-2xl font-black text-blue-950 tracking-tight block mb-3">
+              AFINBO
+            </span>
+            <p className="text-slate-500 text-xs leading-relaxed max-w-xs">
+              Your trusted partner for professional fiber optic tools, advanced testing equipment, and comprehensive calibration services.
+            </p>
+          </div>
+
+          {/* Column 2: PRODUCTS */}
+          <div>
+            <h4 className="text-slate-900 font-extrabold text-xs tracking-wider uppercase mb-4">
+              PRODUCTS
+            </h4>
+            <ul className="space-y-2.5 text-xs text-slate-600">
+              <li>
+                <button
+                  onClick={() => onOpenCategory('Strippers')}
+                  className="hover:text-rose-600 transition cursor-pointer"
+                >
+                  Strippers
+                </button>
+              </li>
+              <li>
+                <button
+                  onClick={() => onOpenCategory('Cleavers')}
+                  className="hover:text-rose-600 transition cursor-pointer"
+                >
+                  Cleavers
+                </button>
+              </li>
+              <li>
+                <button
+                  onClick={() => onOpenCategory('Testers')}
+                  className="hover:text-rose-600 transition cursor-pointer"
+                >
+                  Testers
+                </button>
+              </li>
+              <li>
+                <button
+                  onClick={() => onOpenCategory('Splicers')}
+                  className="hover:text-rose-600 transition cursor-pointer"
+                >
+                  Splicers
+                </button>
+              </li>
+            </ul>
+          </div>
+
+          {/* Column 3: COMPANY */}
+          <div>
+            <h4 className="text-slate-900 font-extrabold text-xs tracking-wider uppercase mb-4">
+              COMPANY
+            </h4>
+            <ul className="space-y-2.5 text-xs text-slate-600">
+              <li>
+                <button onClick={onOpenContact} className="hover:text-rose-600 transition cursor-pointer">
+                  About Us
+                </button>
+              </li>
+              <li>
+                <button onClick={onOpenContact} className="hover:text-rose-600 transition cursor-pointer">
+                  Contact Us
+                </button>
+              </li>
+              <li>
+                <button onClick={onOpenContact} className="hover:text-rose-600 transition cursor-pointer">
+                  Calibration Services
+                </button>
+              </li>
+              <li className="pt-1">
+                <a
+                  href="#admin"
+                  className="inline-flex items-center gap-1.5 text-slate-600 hover:text-slate-900 transition"
+                >
+                  <Shield className="w-3.5 h-3.5 text-slate-500" />
+                  <span>Admin Sign In</span>
+                </a>
+              </li>
+            </ul>
+          </div>
+
+          {/* Column 4: CONTACT */}
+          <div>
+            <h4 className="text-slate-900 font-extrabold text-xs tracking-wider uppercase mb-4">
+              CONTACT
+            </h4>
+            <p className="text-slate-600 text-xs mb-2">
+              Whitesand Avenue, Ikate Lagos
+            </p>
+            <p className="text-slate-600 text-xs mb-3 font-medium">
+              Phone: +2348033922029
+            </p>
+
+            {/* WhatsApp Us Button */}
+            <a
+              href="https://wa.me/2348033922029"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="bg-emerald-50 hover:bg-emerald-100 text-emerald-600 font-semibold text-xs px-3.5 py-2 rounded-lg border border-emerald-200/80 inline-flex items-center gap-2 transition"
+            >
+              <MessageSquare className="w-3.5 h-3.5" />
+              <span>WhatsApp Us</span>
+            </a>
+          </div>
+
+        </div>
+
+        {/* Bottom Horizontal Line & Copyright */}
+        <div className="border-t border-slate-200/60 pt-6 flex flex-col sm:flex-row items-center justify-between text-xs text-slate-500 gap-4">
+          <p>© 2026 Afinbo Nigeria LTD. All rights reserved.</p>
+
+          <div className="flex items-center space-x-4">
+            <a href="#" className="text-slate-400 hover:text-slate-600 transition" aria-label="LinkedIn">
+              <Linkedin className="w-4 h-4" />
+            </a>
+            <a href="#" className="text-slate-400 hover:text-slate-600 transition" aria-label="Twitter">
+              <Twitter className="w-4 h-4" />
+            </a>
+          </div>
+        </div>
+
+      </div>
+    </footer>
+  );
+};
