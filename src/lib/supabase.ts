@@ -83,6 +83,7 @@ const createSafeSupabaseClient = (): SupabaseClient => {
     or: () => safeMockQueryBuilder,
     limit: () => safeMockQueryBuilder,
     single: async () => ({ data: null, error: null }),
+    maybeSingle: async () => ({ data: null, error: null }),
     then: (resolve: (val: { data: unknown[]; error: null }) => void) => {
       resolve({ data: [], error: null });
     },

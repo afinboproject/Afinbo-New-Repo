@@ -76,10 +76,29 @@ export const AdminDashboard: React.FC = () => {
   const { isAuthenticated, user, login, logout } = useAuth();
 
   // Login form state
-  const [loginUser, setLoginUser] = useState('admin');
-  const [loginPass, setLoginPass] = useState('AfinboAdmin2026!');
+  const [loginUser, setLoginUser] = useState('');
+  const [loginPass, setLoginPass] = useState('');
   const [loginError, setLoginError] = useState('');
   const [isLoggingIn, setIsLoggingIn] = useState(false);
+  const [inactivityNotice, setInactivityNotice] = useState<string | null>(() => {
+    try {
+      const reason = sessionStorage.getItem('afinbo_admin_logout_reason');
+      return reason === 'inactivity'
+        ? 'Your administrator session expired after 30 minutes of inactivity. Please sign in again.'
+        : null;
+    } catch {
+      return null;
+    }
+  });
+
+  // Listen to session expiry events
+  useEffect(() => {
+    const handleSessionExpired = () => {
+      setInactivityNotice('Your administrator session expired after 30 minutes of inactivity. Please sign in again.');
+    };
+    window.addEventListener('afinbo_session_expired', handleSessionExpired);
+    return () => window.removeEventListener('afinbo_session_expired', handleSessionExpired);
+  }, []);
 
   // Layout state
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
@@ -281,20 +300,23 @@ export const AdminDashboard: React.FC = () => {
   };
 
   // Auth Submit Handlers
-  const handleLoginSubmit = (e: React.FormEvent) => {
+  const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoginError('');
     setIsLoggingIn(true);
 
-    setTimeout(() => {
-      const success = login(loginUser, loginPass);
-      setIsLoggingIn(false);
-      if (!success) {
-        setLoginError('Invalid username or password. Please verify your credentials.');
+    try {
+      const result = await login(loginUser, loginPass);
+      if (!result.success) {
+        setLoginError(result.error || 'Invalid credentials');
       } else {
         showToast('Authenticated successfully. Welcome back to AFINBO Admin.');
       }
-    }, 400);
+    } catch (err: unknown) {
+      setLoginError(err instanceof Error ? err.message : 'Authentication failed. Please try again.');
+    } finally {
+      setIsLoggingIn(false);
+    }
   };
 
   const handleLogoutAction = () => {
@@ -568,6 +590,16 @@ export const AdminDashboard: React.FC = () => {
           </div>
 
           <form onSubmit={handleLoginSubmit} className="space-y-4">
+            {inactivityNotice && (
+              <div className="text-xs text-amber-800 font-semibold bg-amber-50 p-3.5 rounded-xl border border-amber-200 flex items-start gap-2.5">
+                <Clock className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <p className="font-bold text-amber-900">Session Expired</p>
+                  <p className="text-[11px] text-amber-700 mt-0.5">{inactivityNotice}</p>
+                </div>
+              </div>
+            )}
+
             <div>
               <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
                 Username / Email
@@ -576,7 +608,11 @@ export const AdminDashboard: React.FC = () => {
                 type="text"
                 required
                 value={loginUser}
-                onChange={(e) => setLoginUser(e.target.value)}
+                onChange={(e) => {
+                  setLoginUser(e.target.value);
+                  if (inactivityNotice) setInactivityNotice(null);
+                  if (loginError) setLoginError('');
+                }}
                 placeholder="admin"
                 className="w-full px-4 py-3 bg-white border border-slate-300 rounded-xl text-sm font-medium text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-600 transition shadow-2xs"
               />
@@ -590,7 +626,11 @@ export const AdminDashboard: React.FC = () => {
                 type="password"
                 required
                 value={loginPass}
-                onChange={(e) => setLoginPass(e.target.value)}
+                onChange={(e) => {
+                  setLoginPass(e.target.value);
+                  if (inactivityNotice) setInactivityNotice(null);
+                  if (loginError) setLoginError('');
+                }}
                 placeholder="••••••••••••"
                 className="w-full px-4 py-3 bg-white border border-slate-300 rounded-xl text-sm font-medium text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-600 transition shadow-2xs"
               />
