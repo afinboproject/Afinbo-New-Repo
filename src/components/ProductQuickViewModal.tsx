@@ -13,6 +13,7 @@ import {
   Check,
 } from 'lucide-react';
 import { Product } from '../types';
+import { formatSpecToString } from '../lib/supabase';
 
 interface ProductQuickViewModalProps {
   product: Product | null;
@@ -306,10 +307,10 @@ export const ProductQuickViewModal: React.FC<ProductQuickViewModalProps> = ({
                             }`}
                           >
                             <span className="font-semibold text-slate-600 text-[11px] sm:w-1/2">
-                              {spec.label}
+                              {formatSpecToString(spec.label)}
                             </span>
                             <span className="font-bold text-slate-900 text-xs sm:w-1/2 sm:text-right">
-                              {spec.value}
+                              {formatSpecToString(spec.value)}
                             </span>
                           </div>
                         ))}
@@ -322,7 +323,7 @@ export const ProductQuickViewModal: React.FC<ProductQuickViewModalProps> = ({
                             className="flex items-center gap-2 text-xs text-slate-700 bg-slate-50 p-2 rounded-lg"
                           >
                             <CheckCircle2 className="w-3.5 h-3.5 text-blue-600 flex-shrink-0" />
-                            <span>{item}</span>
+                            <span>{formatSpecToString(item)}</span>
                           </div>
                         ))}
                       </div>
@@ -338,7 +339,7 @@ export const ProductQuickViewModal: React.FC<ProductQuickViewModalProps> = ({
                         <div className="w-4 h-4 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center flex-shrink-0 mt-0.5">
                           <Check className="w-2.5 h-2.5 stroke-[3]" />
                         </div>
-                        <span className="leading-snug">{feat}</span>
+                        <span className="leading-snug">{formatSpecToString(feat)}</span>
                       </div>
                     ))}
                   </div>
@@ -354,7 +355,7 @@ export const ProductQuickViewModal: React.FC<ProductQuickViewModalProps> = ({
                           className="flex items-center gap-2.5 text-xs text-slate-800 bg-slate-50/80 border border-slate-200/60 p-2.5 rounded-xl"
                         >
                           <Package className="w-3.5 h-3.5 text-rose-600 flex-shrink-0" />
-                          <span className="font-medium">{item}</span>
+                          <span className="font-medium">{formatSpecToString(item)}</span>
                         </div>
                       ))
                     ) : (

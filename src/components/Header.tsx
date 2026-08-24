@@ -1,6 +1,21 @@
-import React, { useState, useEffect } from 'react';
-import { FileText, Menu, X, Search, ChevronRight, PhoneCall } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import {
+  FileText,
+  Menu,
+  X,
+  Search,
+  ChevronRight,
+  PhoneCall,
+  ShieldCheck,
+  LayoutDashboard,
+  Box,
+  Bell,
+  Settings,
+  LogOut,
+  PlusCircle
+} from 'lucide-react';
 import { Link, useRouter } from '../lib/router';
+import { useAuth } from '../lib/auth';
 
 interface HeaderProps {
   onRequestQuote: () => void;
@@ -12,7 +27,10 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenSearch,
 }) => {
   const [menuOpen, setMenuOpen] = useState(false);
-  const { currentPath, isPathActive } = useRouter();
+  const [adminDropdownOpen, setAdminDropdownOpen] = useState(false);
+  const { currentPath, isPathActive, navigate } = useRouter();
+  const { isAuthenticated, user, logout } = useAuth();
+  const adminDropdownRef = useRef<HTMLDivElement>(null);
 
   // Strictly only the requested menu items
   const navLinks = [
@@ -21,20 +39,48 @@ export const Header: React.FC<HeaderProps> = ({
     { label: 'About AFINBO', href: '/about-afinbo' },
   ];
 
-  // Close menu on route change or ESC key
+  // Close menu and dropdown on route change or ESC key
   useEffect(() => {
     setMenuOpen(false);
+    setAdminDropdownOpen(false);
   }, [currentPath]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         setMenuOpen(false);
+        setAdminDropdownOpen(false);
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    const handleOutsideClick = (e: MouseEvent) => {
+      if (adminDropdownRef.current && !adminDropdownRef.current.contains(e.target as Node)) {
+        setAdminDropdownOpen(false);
+      }
+    };
+    if (adminDropdownOpen) {
+      document.addEventListener('mousedown', handleOutsideClick);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleOutsideClick);
+    };
+  }, [adminDropdownOpen]);
+
+  const handleAdminAction = (tab?: string) => {
+    setAdminDropdownOpen(false);
+    setMenuOpen(false);
+    navigate(tab ? `/admin?tab=${tab}` : '/admin');
+  };
+
+  const handleAdminLogout = () => {
+    logout();
+    setAdminDropdownOpen(false);
+  };
 
   return (
     <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200/70 shadow-2xs">
@@ -52,7 +98,7 @@ export const Header: React.FC<HeaderProps> = ({
           </span>
         </Link>
 
-        {/* Right Controls: Search button + Fine Hamburger Menu Toggle */}
+        {/* Right Controls: Search + (Admin Avatar if logged in) + Fine Hamburger Menu */}
         <div className="flex items-center gap-2 sm:gap-3">
           <button
             onClick={onOpenSearch}
@@ -62,6 +108,138 @@ export const Header: React.FC<HeaderProps> = ({
           >
             <Search className="w-4 h-4 sm:w-5 sm:h-5" />
           </button>
+
+          {/* Neat Admin Avatar (Shown between search and hamburger when logged in) */}
+          {isAuthenticated && (
+            <div className="relative" ref={adminDropdownRef}>
+              <button
+                type="button"
+                onClick={() => setAdminDropdownOpen(!adminDropdownOpen)}
+                className={`relative flex items-center justify-center w-9 h-9 sm:w-10 sm:h-10 rounded-full font-black text-xs transition duration-200 cursor-pointer shadow-xs ${
+                  adminDropdownOpen
+                    ? 'bg-slate-950 text-white ring-2 ring-rose-600 ring-offset-2'
+                    : 'bg-slate-900 hover:bg-slate-800 text-white ring-1 ring-slate-700/60'
+                }`}
+                title="Admin Account - Tap to access Dashboard menu"
+                aria-label="Admin Dashboard Menu"
+                aria-expanded={adminDropdownOpen}
+              >
+                <span className="tracking-tighter">AD</span>
+                {/* Active Green Dot indicator */}
+                <span className="absolute -top-0.5 -right-0.5 w-3 h-3 bg-emerald-500 rounded-full ring-2 ring-white animate-pulse" />
+              </button>
+
+              {/* Admin Dashboard Dropdown Menu */}
+              {adminDropdownOpen && (
+                <div className="absolute right-0 top-12 w-72 bg-white rounded-2xl border border-slate-200 shadow-2xl z-50 p-3 space-y-2 animate-in fade-in slide-in-from-top-2 duration-150">
+                  {/* Admin User Header */}
+                  <div className="p-3 bg-slate-900 text-white rounded-xl">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className="w-7 h-7 rounded-lg bg-rose-600 flex items-center justify-center text-white font-black text-xs shadow-xs">
+                          <ShieldCheck className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <p className="text-xs font-bold leading-none">{user?.name || 'Administrator'}</p>
+                          <p className="text-[10px] text-slate-400 mt-0.5">Control Center Active</p>
+                        </div>
+                      </div>
+                      <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-extrabold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                        Online
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Admin Dashboard Navigation Items */}
+                  <div className="space-y-1 text-xs">
+                    <button
+                      type="button"
+                      onClick={() => handleAdminAction()}
+                      className="w-full flex items-center justify-between p-2.5 rounded-xl font-bold text-slate-800 hover:bg-slate-100 transition cursor-pointer"
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <LayoutDashboard className="w-4 h-4 text-blue-600" />
+                        <span>Admin Overview</span>
+                      </div>
+                      <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleAdminAction('products')}
+                      className="w-full flex items-center justify-between p-2.5 rounded-xl font-bold text-slate-800 hover:bg-slate-100 transition cursor-pointer"
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <Box className="w-4 h-4 text-slate-600" />
+                        <span>Products Catalog</span>
+                      </div>
+                      <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleAdminAction('quotes')}
+                      className="w-full flex items-center justify-between p-2.5 rounded-xl font-bold text-slate-800 hover:bg-slate-100 transition cursor-pointer"
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <FileText className="w-4 h-4 text-slate-600" />
+                        <span>Quote Requests</span>
+                      </div>
+                      <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleAdminAction('notifications')}
+                      className="w-full flex items-center justify-between p-2.5 rounded-xl font-bold text-slate-800 hover:bg-slate-100 transition cursor-pointer"
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <Bell className="w-4 h-4 text-slate-600" />
+                        <span>Inquiry Notifications</span>
+                      </div>
+                      <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleAdminAction('settings')}
+                      className="w-full flex items-center justify-between p-2.5 rounded-xl font-bold text-slate-800 hover:bg-slate-100 transition cursor-pointer"
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <Settings className="w-4 h-4 text-slate-600" />
+                        <span>Alert & Email Settings</span>
+                      </div>
+                      <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
+                    </button>
+                  </div>
+
+                  {/* Primary Return Button */}
+                  <div className="pt-1 border-t border-slate-100">
+                    <button
+                      type="button"
+                      onClick={() => handleAdminAction()}
+                      className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs py-2.5 rounded-xl flex items-center justify-center gap-1.5 shadow-xs transition cursor-pointer"
+                    >
+                      <LayoutDashboard className="w-3.5 h-3.5" />
+                      <span>Open Admin Dashboard</span>
+                    </button>
+                  </div>
+
+                  {/* Sign Out Option */}
+                  <div className="pt-1">
+                    <button
+                      type="button"
+                      onClick={handleAdminLogout}
+                      className="w-full text-rose-600 hover:bg-rose-50 font-bold text-xs p-2 rounded-xl flex items-center justify-center gap-1.5 transition cursor-pointer"
+                    >
+                      <LogOut className="w-3.5 h-3.5" />
+                      <span>Sign Out</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Fine Hamburger Menu Icon Button */}
           <button
@@ -165,3 +343,4 @@ export const Header: React.FC<HeaderProps> = ({
     </header>
   );
 };
+

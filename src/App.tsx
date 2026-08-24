@@ -9,6 +9,7 @@ vercel.json setup:
 
 import React, { useState } from 'react';
 import { RouterProvider, useRouter, normalizePath } from './lib/router';
+import { AuthProvider } from './lib/auth';
 import { Header } from './components/Header';
 import { Hero } from './components/Hero';
 import { ValueProps } from './components/ValueProps';
@@ -21,6 +22,7 @@ import { QuoteModal } from './components/QuoteModal';
 import { ContactModal } from './components/ContactModal';
 import { SearchModal } from './components/SearchModal';
 import { ProductQuickViewModal } from './components/ProductQuickViewModal';
+import { AdminDashboard } from './components/AdminDashboard';
 import { Product } from './types';
 import { CheckCircle2, X } from 'lucide-react';
 
@@ -62,6 +64,7 @@ function AppContent() {
 
   // Route Resolution based on clean pathname
   const normalized = normalizePath(currentPath);
+  const isAdminRoute = normalized === '/admin' || normalized === '/login';
 
   const renderCurrentView = () => {
     switch (normalized) {
@@ -139,6 +142,14 @@ function AppContent() {
           </main>
         );
 
+      case '/admin':
+      case '/login':
+        return (
+          <main>
+            <AdminDashboard />
+          </main>
+        );
+
       case '/products':
       default:
         return (
@@ -153,20 +164,45 @@ function AppContent() {
     }
   };
 
+  // If on Admin Route, render distinct and unique admin dashboard without public Header or Footer
+  if (isAdminRoute) {
+    return (
+      <div className="min-h-screen bg-slate-50 text-slate-900 font-sans antialiased">
+        {/* Isolated Distinct Admin Dashboard View */}
+        <AdminDashboard />
+
+        {/* Global Toast Notification */}
+        {toastMessage && (
+          <div className="fixed bottom-6 right-6 z-50 max-w-sm bg-slate-900 text-white p-4 rounded-2xl shadow-xl border border-slate-800 flex items-start gap-3 animate-slide-up">
+            <CheckCircle2 className="w-5 h-5 text-emerald-400 flex-shrink-0 mt-0.5" />
+            <div className="flex-1 text-xs leading-relaxed">{toastMessage}</div>
+            <button
+              onClick={() => setToastMessage(null)}
+              className="text-slate-400 hover:text-white p-0.5 rounded-full cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // Standard Public Storefront Layout with Public Header & Footer
   return (
     <div className="min-h-screen bg-white text-slate-900 font-sans antialiased selection:bg-rose-100 selection:text-rose-900 flex flex-col justify-between">
       <div>
-        {/* Header with Clean Path Navigation & Active State */}
+        {/* Public Header with Clean Path Navigation & Active State */}
         <Header
           onRequestQuote={handleOpenGeneralQuote}
           onOpenSearch={() => setSearchModalOpen(true)}
         />
 
-        {/* Dynamic Route View */}
+        {/* Dynamic Public Route View */}
         {renderCurrentView()}
       </div>
 
-      {/* Footer with Clean Paths */}
+      {/* Public Footer with Clean Paths */}
       <Footer
         onOpenContact={() => setContactModalOpen(true)}
       />
@@ -219,7 +255,10 @@ function AppContent() {
 export default function App() {
   return (
     <RouterProvider>
-      <AppContent />
+      <AuthProvider>
+        <AppContent />
+      </AuthProvider>
     </RouterProvider>
   );
 }
+

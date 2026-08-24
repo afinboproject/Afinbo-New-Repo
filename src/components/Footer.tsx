@@ -98,17 +98,15 @@ export const Footer: React.FC<FooterProps> = ({ onOpenContact, onOpenAdminAuth }
                   Contact Sales & Engineering
                 </button>
               </li>
-              {onOpenAdminAuth && (
-                <li className="pt-1">
-                  <button
-                    onClick={onOpenAdminAuth}
-                    className="inline-flex items-center gap-1.5 text-slate-600 hover:text-slate-900 transition cursor-pointer"
-                  >
-                    <Shield className="w-3.5 h-3.5 text-slate-500" />
-                    <span>Admin Portal</span>
-                  </button>
-                </li>
-              )}
+              <li className="pt-1">
+                <Link
+                  href="/admin"
+                  className="inline-flex items-center gap-1.5 text-slate-600 hover:text-slate-900 transition cursor-pointer"
+                >
+                  <Shield className="w-3.5 h-3.5 text-slate-500" />
+                  <span>Admin Portal</span>
+                </Link>
+              </li>
             </ul>
           </div>
 

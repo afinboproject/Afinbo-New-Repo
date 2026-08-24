@@ -1,0 +1,1327 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AFINBO | Admin Control Center</title>
+  
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Lucide Icons CDN -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <!-- Google Fonts: Inter / Plus Jakarta Sans -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['"Plus Jakarta Sans"', 'sans-serif'],
+          },
+          colors: {
+            brand: {
+              red: '#e11d48',
+              blue: '#1e3a8a',
+              dark: '#0f172a'
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    body {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      background-color: #f8fafc;
+      color: #0f172a;
+    }
+    .custom-scrollbar::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-track {
+      background: #f1f5f9;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+      border-radius: 9999px;
+    }
+  </style>
+</head>
+<body class="min-h-screen bg-slate-50 text-slate-900 antialiased flex flex-col justify-between">
+
+  <!-- ================================================================ -->
+  <!-- 1. AUTHENTICATION / LOGIN SCREEN (Visible when unauthenticated) -->
+  <!-- ================================================================ -->
+  <div id="loginSection" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/70 backdrop-blur-xs p-4">
+    <div class="bg-white rounded-3xl max-w-md w-full p-8 shadow-2xl border border-slate-100 relative overflow-hidden">
+      <!-- Top Red Accent Line -->
+      <div class="absolute top-0 left-0 right-0 h-1.5 bg-rose-600"></div>
+
+      <div class="text-center mb-8">
+        <div class="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-slate-900 text-white font-black text-xl mb-3 shadow-md">
+          A
+        </div>
+        <h1 class="text-2xl font-extrabold text-slate-900 tracking-tight">Admin Authentication</h1>
+        <p class="text-xs text-slate-500 mt-1">AFINBO Fiber Optic Equipment Control Center</p>
+      </div>
+
+      <form id="loginForm" class="space-y-4" onsubmit="handleLoginSubmit(event)">
+        <div>
+          <label class="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1.5">Username</label>
+          <input
+            type="text"
+            id="loginUsername"
+            required
+            value="admin"
+            class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600 transition"
+            placeholder="Enter administrative username"
+          />
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1.5">Password</label>
+          <input
+            type="password"
+            id="loginPassword"
+            required
+            value="AfinboAdmin2026!"
+            class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600 transition"
+            placeholder="Enter administrative password"
+          />
+        </div>
+
+        <div id="loginError" class="hidden text-xs text-rose-600 font-semibold bg-rose-50 p-3 rounded-xl border border-rose-200"></div>
+
+        <button
+          type="submit"
+          id="loginBtn"
+          class="w-full py-3 px-4 bg-slate-900 hover:bg-slate-800 active:bg-slate-950 text-white font-bold text-sm rounded-xl shadow-md transition duration-150 flex items-center justify-center gap-2 cursor-pointer mt-6"
+        >
+          <i data-lucide="lock" class="w-4 h-4"></i>
+          <span>Secure Sign In</span>
+        </button>
+
+        <p class="text-[11px] text-center text-slate-400 mt-4">
+          Protected by Google Apps Script & Supabase Auth Engine
+        </p>
+      </form>
+    </div>
+  </div>
+
+
+  <!-- ================================================================ -->
+  <!-- 2. MAIN ADMIN DASHBOARD APPLICATION -->
+  <!-- ================================================================ -->
+  <div id="appContainer" class="hidden flex-1 flex flex-col">
+    
+    <!-- Top Navigation Header -->
+    <header class="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200 shadow-2xs">
+      <div class="h-[3px] bg-rose-600 w-full"></div>
+      
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-18 flex items-center justify-between">
+        
+        <!-- Left: Logo & Navigation Tabs -->
+        <div class="flex items-center gap-6 md:gap-10">
+          <div class="flex items-center gap-2.5">
+            <span class="text-2xl font-black tracking-tight text-blue-950">AFINBO</span>
+            <span class="bg-rose-100 text-rose-700 text-[10px] font-extrabold px-2 py-0.5 rounded-md border border-rose-200">ADMIN</span>
+          </div>
+
+          <!-- Main Nav Tabs -->
+          <nav class="flex items-center gap-1.5 bg-slate-100/80 p-1 rounded-xl border border-slate-200/60">
+            <button
+              id="tabBtnProducts"
+              onclick="switchTab('products')"
+              class="px-4 py-2 text-xs font-bold rounded-lg transition flex items-center gap-2 bg-white text-slate-900 shadow-2xs cursor-pointer"
+            >
+              <i data-lucide="box" class="w-3.5 h-3.5 text-blue-600"></i>
+              <span>Products</span>
+              <span id="badgeProductCount" class="bg-slate-100 text-slate-700 text-[10px] px-1.5 py-0.2 rounded-full ml-1">0</span>
+            </button>
+
+            <button
+              id="tabBtnQuotes"
+              onclick="switchTab('quotes')"
+              class="px-4 py-2 text-xs font-bold rounded-lg transition flex items-center gap-2 text-slate-600 hover:text-slate-900 cursor-pointer"
+            >
+              <i data-lucide="file-text" class="w-3.5 h-3.5 text-slate-500"></i>
+              <span>Quote Requests</span>
+              <span id="badgePendingQuoteCount" class="bg-rose-600 text-white text-[10px] font-extrabold px-1.5 py-0.2 rounded-full ml-1 hidden">0</span>
+            </button>
+          </nav>
+        </div>
+
+        <!-- Right: Actions & User Info -->
+        <div class="flex items-center gap-3">
+          
+          <!-- Wipe Demo Data Utility Button -->
+          <button
+            type="button"
+            onclick="promptWipeDemoData()"
+            class="hidden sm:inline-flex items-center gap-1.5 text-xs font-bold text-rose-600 hover:text-rose-700 hover:bg-rose-50 border border-rose-200 px-3 py-2 rounded-xl transition cursor-pointer"
+            title="Clean all demo records from database"
+          >
+            <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+            <span>Wipe Demo Data</span>
+          </button>
+
+          <!-- User Menu & Sign Out -->
+          <div class="flex items-center gap-3 pl-3 border-l border-slate-200">
+            <div class="text-right hidden md:block">
+              <p id="adminUserName" class="text-xs font-bold text-slate-900 leading-tight">Admin User</p>
+              <p class="text-[10px] font-medium text-slate-400">Superadmin</p>
+            </div>
+            <button
+              onclick="handleLogout()"
+              class="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition cursor-pointer"
+              title="Sign Out"
+            >
+              <i data-lucide="log-out" class="w-4 h-4"></i>
+            </button>
+          </div>
+
+        </div>
+      </div>
+    </header>
+
+
+    <!-- Main Body Area -->
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full flex-1">
+      
+      <!-- ============================================================== -->
+      <!-- TAB 1: PRODUCTS MANAGEMENT -->
+      <!-- ============================================================== -->
+      <section id="tabContentProducts" class="space-y-6">
+        
+        <!-- Action Header Bar -->
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-5 rounded-2xl border border-slate-200/80 shadow-2xs">
+          <div>
+            <h2 class="text-xl font-extrabold text-slate-900 tracking-tight flex items-center gap-2">
+              <span>Catalog Management</span>
+              <span class="text-xs font-medium text-slate-400">(Quote-Based Model)</span>
+            </h2>
+            <p class="text-xs text-slate-500 mt-0.5">Manage fiber optic splicers, cleavers, strippers, and testers without ecommerce pricing.</p>
+          </div>
+
+          <div class="flex items-center gap-2.5">
+            <!-- Search Catalog Filter -->
+            <div class="relative w-full sm:w-64">
+              <i data-lucide="search" class="w-4 h-4 text-slate-400 absolute left-3 top-2.5"></i>
+              <input
+                type="text"
+                id="productSearchInput"
+                oninput="filterProductsTable()"
+                placeholder="Search name, model, SKU..."
+                class="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600"
+              />
+            </div>
+
+            <!-- Add Product Button -->
+            <button
+              type="button"
+              onclick="openProductModal()"
+              class="bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-bold text-xs px-4 py-2 rounded-xl flex items-center gap-1.5 shadow-xs transition duration-150 cursor-pointer flex-shrink-0"
+            >
+              <i data-lucide="plus" class="w-4 h-4"></i>
+              <span>Add Equipment</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Products Data Table -->
+        <div class="bg-white rounded-2xl border border-slate-200/80 shadow-2xs overflow-hidden">
+          <div class="overflow-x-auto custom-scrollbar">
+            <table class="w-full text-left border-collapse">
+              <thead>
+                <tr class="bg-slate-50/80 border-b border-slate-200/80 text-[11px] font-extrabold uppercase text-slate-500 tracking-wider">
+                  <th class="py-3.5 px-4 w-16">Image</th>
+                  <th class="py-3.5 px-4">Equipment Name</th>
+                  <th class="py-3.5 px-4">Model & SKU</th>
+                  <th class="py-3.5 px-4">Category / Brand</th>
+                  <th class="py-3.5 px-4">Status</th>
+                  <th class="py-3.5 px-4 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody id="productsTableBody" class="divide-y divide-slate-100 text-xs text-slate-700 font-medium">
+                <!-- Populated dynamically -->
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Empty State Container -->
+          <div id="productsEmptyState" class="hidden p-12 text-center">
+            <div class="w-12 h-12 rounded-2xl bg-slate-100 text-slate-400 flex items-center justify-center mx-auto mb-3">
+              <i data-lucide="box" class="w-6 h-6"></i>
+            </div>
+            <h3 class="text-sm font-bold text-slate-800">No equipment found in catalog</h3>
+            <p class="text-xs text-slate-500 mt-1 max-w-sm mx-auto">Click &quot;Add Equipment&quot; to register your first fusion splicer, cleaver, or OTDR tester.</p>
+            <button
+              onclick="openProductModal()"
+              class="mt-4 inline-flex items-center gap-1.5 bg-blue-600 text-white font-bold text-xs px-4 py-2 rounded-xl hover:bg-blue-700 transition cursor-pointer"
+            >
+              <i data-lucide="plus" class="w-3.5 h-3.5"></i>
+              <span>Add Equipment Now</span>
+            </button>
+          </div>
+        </div>
+
+      </section>
+
+
+      <!-- ============================================================== -->
+      <!-- TAB 2: QUOTE REQUESTS MANAGEMENT -->
+      <!-- ============================================================== -->
+      <section id="tabContentQuotes" class="hidden space-y-6">
+        
+        <!-- Header & Status Filter Bar -->
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-5 rounded-2xl border border-slate-200/80 shadow-2xs">
+          <div>
+            <h2 class="text-xl font-extrabold text-slate-900 tracking-tight">Procurement & Quote Requests</h2>
+            <p class="text-xs text-slate-500 mt-0.5">Review incoming fiber optic customer inquiries, respond, and log status.</p>
+          </div>
+
+          <!-- Status Filter Tabs -->
+          <div class="flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200/60 overflow-x-auto text-xs font-bold">
+            <button onclick="filterQuotesByStatus('all')" id="qFilterAll" class="px-3 py-1.5 rounded-lg bg-white text-slate-900 shadow-2xs">All</button>
+            <button onclick="filterQuotesByStatus('pending')" id="qFilterPending" class="px-3 py-1.5 rounded-lg text-slate-600 hover:text-slate-900">Pending</button>
+            <button onclick="filterQuotesByStatus('contacted')" id="qFilterContacted" class="px-3 py-1.5 rounded-lg text-slate-600 hover:text-slate-900">Contacted</button>
+            <button onclick="filterQuotesByStatus('completed')" id="qFilterCompleted" class="px-3 py-1.5 rounded-lg text-slate-600 hover:text-slate-900">Completed</button>
+            <button onclick="filterQuotesByStatus('cancelled')" id="qFilterCancelled" class="px-3 py-1.5 rounded-lg text-slate-600 hover:text-slate-900">Cancelled</button>
+          </div>
+        </div>
+
+        <!-- Quotes Data Table -->
+        <div class="bg-white rounded-2xl border border-slate-200/80 shadow-2xs overflow-hidden">
+          <div class="overflow-x-auto custom-scrollbar">
+            <table class="w-full text-left border-collapse">
+              <thead>
+                <tr class="bg-slate-50/80 border-b border-slate-200/80 text-[11px] font-extrabold uppercase text-slate-500 tracking-wider">
+                  <th class="py-3.5 px-4">Date</th>
+                  <th class="py-3.5 px-4">Customer Details</th>
+                  <th class="py-3.5 px-4">Requested Equipment</th>
+                  <th class="py-3.5 px-4">Qty</th>
+                  <th class="py-3.5 px-4">Status</th>
+                  <th class="py-3.5 px-4 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody id="quotesTableBody" class="divide-y divide-slate-100 text-xs text-slate-700 font-medium">
+                <!-- Populated dynamically -->
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Empty State Container -->
+          <div id="quotesEmptyState" class="hidden p-12 text-center">
+            <div class="w-12 h-12 rounded-2xl bg-slate-100 text-slate-400 flex items-center justify-center mx-auto mb-3">
+              <i data-lucide="inbox" class="w-6 h-6"></i>
+            </div>
+            <h3 class="text-sm font-bold text-slate-800">No quote requests found</h3>
+            <p class="text-xs text-slate-500 mt-1 max-w-sm mx-auto">When clients submit requests from the product pages, they will appear here in real time.</p>
+          </div>
+        </div>
+
+      </section>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-white border-t border-slate-200 py-4 text-center text-xs text-slate-500">
+      AFINBO Nigeria Ltd &bull; Industrial Fiber Equipment Control System &bull; Production Ready
+    </footer>
+
+  </div>
+
+
+  <!-- ================================================================ -->
+  <!-- 3. ADD / EDIT PRODUCT MODAL (Quote-Based Fields Only) -->
+  <!-- ================================================================ -->
+  <div id="productModal" class="fixed inset-0 z-50 hidden flex items-center justify-center bg-slate-900/60 backdrop-blur-2xs p-4 overflow-y-auto">
+    <div class="bg-white rounded-3xl max-w-2xl w-full p-6 sm:p-8 shadow-2xl border border-slate-100 relative my-8 max-h-[90vh] flex flex-col">
+      
+      <!-- Modal Header -->
+      <div class="flex items-center justify-between pb-4 border-b border-slate-100">
+        <div>
+          <h2 id="productModalTitle" class="text-lg font-extrabold text-slate-900">Add Equipment to Catalog</h2>
+          <p class="text-xs text-slate-500">Quote-based model (standard pricing disabled)</p>
+        </div>
+        <button onclick="closeProductModal()" class="p-1 text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-100 cursor-pointer">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <!-- Scrollable Form Body -->
+      <form id="productForm" onsubmit="handleProductSubmit(event)" class="overflow-y-auto space-y-4 pt-4 pr-1 flex-1 custom-scrollbar">
+        <input type="hidden" id="prodId" />
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label class="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">Equipment Name *</label>
+            <input type="text" id="prodName" required placeholder="e.g. Fujikura 90S+ Core Alignment Splicer" class="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600" />
+          </div>
+          <div>
+            <label class="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">Category *</label>
+            <select id="prodCategory" required class="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600">
+              <option value="Splicers">Fusion Splicers</option>
+              <option value="Cleavers">Precision Cleavers</option>
+              <option value="Strippers">Thermal & Fiber Strippers</option>
+              <option value="Testers">Testers & Inspection (OTDR/Power Meters)</option>
+              <option value="Cleaning">Cleaning & Maintenance Kits</option>
+              <option value="Tools">Ribbon Separation & Hand Tools</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div>
+            <label class="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">Model Number</label>
+            <input type="text" id="prodModelNumber" placeholder="e.g. 90S+" class="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600" />
+          </div>
+          <div>
+            <label class="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">SKU</label>
+            <input type="text" id="prodSku" placeholder="e.g. AF-FJK-90S" class="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600" />
+          </div>
+          <div>
+            <label class="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">Brand / Manufacturer</label>
+            <input type="text" id="prodBrand" value="Fujikura" class="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600" />
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label class="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">Status</label>
+            <select id="prodStatus" class="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600">
+              <option value="active">Active (Visible on public store)</option>
+              <option value="draft">Draft (Hidden)</option>
+              <option value="archived">Archived</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">Main Image URL</label>
+            <input type="url" id="prodMainImage" placeholder="https://..." class="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600" />
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">Short Subtitle / Description</label>
+          <input type="text" id="prodSubtitle" placeholder="Brief technical summary (e.g., Core alignment, 6-second splice, active loss estimation)" class="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600" />
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">Comprehensive Product Overview</label>
+          <textarea id="prodOverview" rows="3" placeholder="Detailed engineering overview of this fiber optic tool..." class="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600"></textarea>
+        </div>
+
+        <!-- Dynamic Technical Specs Builder (Label & Value) -->
+        <div class="pt-2">
+          <div class="flex items-center justify-between mb-2">
+            <label class="text-xs font-bold uppercase tracking-wider text-slate-600">Technical Specifications (JSONB)</label>
+            <button type="button" onclick="addTechSpecRow()" class="text-xs text-blue-600 hover:text-blue-700 font-bold flex items-center gap-1 cursor-pointer">
+              <i data-lucide="plus-circle" class="w-3.5 h-3.5"></i>
+              <span>Add Spec Row</span>
+            </button>
+          </div>
+          <div id="techSpecsContainer" class="space-y-2">
+            <!-- Dynamic rows -->
+          </div>
+        </div>
+
+        <!-- Dynamic Features Builder (Bullet points) -->
+        <div class="pt-2">
+          <div class="flex items-center justify-between mb-2">
+            <label class="text-xs font-bold uppercase tracking-wider text-slate-600">Key Features List (JSONB)</label>
+            <button type="button" onclick="addFeatureRow()" class="text-xs text-blue-600 hover:text-blue-700 font-bold flex items-center gap-1 cursor-pointer">
+              <i data-lucide="plus-circle" class="w-3.5 h-3.5"></i>
+              <span>Add Feature Point</span>
+            </button>
+          </div>
+          <div id="featuresContainer" class="space-y-2">
+            <!-- Dynamic rows -->
+          </div>
+        </div>
+
+        <!-- Best Seller checkbox -->
+        <div class="flex items-center gap-2 pt-2">
+          <input type="checkbox" id="prodBestSeller" class="w-4 h-4 text-rose-600 rounded border-slate-300 focus:ring-rose-500" />
+          <label for="prodBestSeller" class="text-xs font-semibold text-slate-700">Display "Best Seller" badge on public catalog</label>
+        </div>
+
+        <!-- Form Actions -->
+        <div class="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
+          <button type="button" onclick="closeProductModal()" class="px-4 py-2 border border-slate-200 text-slate-700 font-bold text-xs rounded-xl hover:bg-slate-50 transition cursor-pointer">
+            Cancel
+          </button>
+          <button type="submit" id="saveProductBtn" class="px-5 py-2 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-bold text-xs rounded-xl shadow-xs transition cursor-pointer">
+            Save Equipment
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+
+  <!-- ================================================================ -->
+  <!-- 4. QUOTE DETAILS & STATUS UPDATE MODAL -->
+  <!-- ================================================================ -->
+  <div id="quoteModal" class="fixed inset-0 z-50 hidden flex items-center justify-center bg-slate-900/60 backdrop-blur-2xs p-4 overflow-y-auto">
+    <div class="bg-white rounded-3xl max-w-xl w-full p-6 sm:p-8 shadow-2xl border border-slate-100 relative my-8 max-h-[90vh] flex flex-col">
+      
+      <!-- Modal Header -->
+      <div class="flex items-center justify-between pb-4 border-b border-slate-100">
+        <div>
+          <h2 class="text-lg font-extrabold text-slate-900">Quote Request Inquiries</h2>
+          <p id="quoteModalDate" class="text-xs text-slate-500">Submitted on: -</p>
+        </div>
+        <button onclick="closeQuoteModal()" class="p-1 text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-100 cursor-pointer">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <!-- Modal Content -->
+      <div class="overflow-y-auto space-y-4 pt-4 pr-1 flex-1 custom-scrollbar text-xs">
+        <input type="hidden" id="activeQuoteId" />
+
+        <!-- Customer Card -->
+        <div class="bg-slate-50 p-4 rounded-2xl border border-slate-200/80 space-y-2">
+          <p class="text-[11px] font-extrabold uppercase text-slate-400 tracking-wider">Customer Information</p>
+          <div class="grid grid-cols-2 gap-3 text-slate-800">
+            <div>
+              <span class="text-slate-400 block text-[10px]">Full Name</span>
+              <span id="qdCustomerName" class="font-bold text-sm text-slate-900">-</span>
+            </div>
+            <div>
+              <span class="text-slate-400 block text-[10px]">Company</span>
+              <span id="qdCompanyName" class="font-semibold">-</span>
+            </div>
+            <div>
+              <span class="text-slate-400 block text-[10px]">Email Address</span>
+              <a id="qdCustomerEmail" href="#" class="font-semibold text-blue-600 hover:underline">-</a>
+            </div>
+            <div>
+              <span class="text-slate-400 block text-[10px]">Phone / WhatsApp</span>
+              <a id="qdCustomerPhone" href="#" class="font-semibold text-blue-600 hover:underline">-</a>
+            </div>
+          </div>
+        </div>
+
+        <!-- Product Request Card -->
+        <div class="bg-slate-50 p-4 rounded-2xl border border-slate-200/80 space-y-2">
+          <p class="text-[11px] font-extrabold uppercase text-slate-400 tracking-wider">Equipment Requested</p>
+          <div class="flex items-center justify-between">
+            <span id="qdProductName" class="font-extrabold text-sm text-slate-900">-</span>
+            <span class="bg-blue-100 text-blue-800 text-xs font-extrabold px-2.5 py-0.5 rounded-full">
+              Qty: <span id="qdQuantity">1</span>
+            </span>
+          </div>
+        </div>
+
+        <!-- Client Notes -->
+        <div>
+          <label class="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">Customer Notes / Message</label>
+          <div id="qdNotes" class="p-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-700 leading-relaxed italic">
+            None provided
+          </div>
+        </div>
+
+        <!-- Status Selector & Admin Notes -->
+        <div class="pt-2 space-y-3">
+          <div>
+            <label class="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">Inquiry Status</label>
+            <select id="qdStatusSelect" class="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600">
+              <option value="pending">Pending Review</option>
+              <option value="contacted">Contacted / Quote Sent</option>
+              <option value="completed">Completed / Deal Closed</option>
+              <option value="cancelled">Cancelled</option>
+            </select>
+          </div>
+
+          <div>
+            <label class="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">Internal Admin Notes</label>
+            <textarea id="qdAdminNotes" rows="2" placeholder="Record internal follow-up log (e.g. Sent proforma invoice #402 via WhatsApp)..." class="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600"></textarea>
+          </div>
+        </div>
+
+        <!-- Modal Actions -->
+        <div class="flex items-center justify-between pt-4 border-t border-slate-100">
+          <button type="button" onclick="handleDeleteActiveQuote()" class="text-rose-600 hover:text-rose-700 font-bold text-xs flex items-center gap-1 cursor-pointer">
+            <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+            <span>Delete Request</span>
+          </button>
+          <div class="flex items-center gap-2">
+            <button type="button" onclick="closeQuoteModal()" class="px-4 py-2 border border-slate-200 text-slate-700 font-bold text-xs rounded-xl hover:bg-slate-50 transition cursor-pointer">
+              Close
+            </button>
+            <button type="button" onclick="handleSaveQuoteStatus()" class="px-5 py-2 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl shadow-xs transition cursor-pointer">
+              Update Status
+            </button>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+
+  <!-- ================================================================ -->
+  <!-- 5. TOAST NOTIFICATION CONTAINER -->
+  <!-- ================================================================ -->
+  <div id="toast" class="fixed bottom-6 right-6 z-50 hidden max-w-sm bg-slate-900 text-white p-4 rounded-2xl shadow-2xl border border-slate-800 flex items-center gap-3 transition-all duration-300">
+    <i id="toastIcon" data-lucide="check-circle" class="w-5 h-5 text-emerald-400 flex-shrink-0"></i>
+    <div id="toastMessage" class="text-xs font-medium leading-relaxed">Operation completed successfully.</div>
+  </div>
+
+
+  <!-- ================================================================ -->
+  <!-- 6. FRONTEND JAVASCRIPT APPLICATION LOGIC -->
+  <!-- ================================================================ -->
+  <script>
+    // State Store
+    const state = {
+      token: null,
+      user: null,
+      activeTab: 'products',
+      products: [],
+      quotes: [],
+      quoteStatusFilter: 'all',
+      searchQuery: ''
+    };
+
+    // Initialize application on page load
+    document.addEventListener('DOMContentLoaded', () => {
+      lucide.createIcons();
+      checkAuthStatus();
+    });
+
+    /**
+     * Auth Verification & Session Restoration
+     */
+    function checkAuthStatus() {
+      const storedToken = sessionStorage.getItem('afinbo_admin_token') || localStorage.getItem('afinbo_admin_token');
+      const storedUser = sessionStorage.getItem('afinbo_admin_user');
+
+      if (storedToken) {
+        state.token = storedToken;
+        if (storedUser) {
+          try { state.user = JSON.parse(storedUser); } catch(e) {}
+        }
+        showDashboardView();
+        loadAllData();
+      } else {
+        showLoginView();
+      }
+    }
+
+    function showLoginView() {
+      document.getElementById('loginSection').classList.remove('hidden');
+      document.getElementById('appContainer').classList.add('hidden');
+    }
+
+    function showDashboardView() {
+      document.getElementById('loginSection').classList.add('hidden');
+      document.getElementById('appContainer').classList.remove('hidden');
+      if (state.user) {
+        document.getElementById('adminUserName').textContent = state.user.name || state.user.username;
+      }
+      lucide.createIcons();
+    }
+
+    /**
+     * Login Form Submission Handler
+     */
+    async function handleLoginSubmit(e) {
+      e.preventDefault();
+      const username = document.getElementById('loginUsername').value.trim();
+      const password = document.getElementById('loginPassword').value.trim();
+      const errEl = document.getElementById('loginError');
+      const btn = document.getElementById('loginBtn');
+
+      errEl.classList.add('hidden');
+      btn.disabled = true;
+      btn.innerHTML = '<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i><span>Signing in...</span>';
+      lucide.createIcons();
+
+      try {
+        let result;
+        // Call Google Apps Script backend if available via google.script.run
+        if (typeof google !== 'undefined' && google.script && google.script.run) {
+          result = await new Promise((resolve) => {
+            google.script.run
+              .withSuccessHandler(resolve)
+              .withFailureHandler((err) => resolve({ success: false, error: err.toString() }))
+              .adminLogin(username, password);
+          });
+        } else {
+          // Standalone / API fallback
+          result = await mockOrRestLogin(username, password);
+        }
+
+        if (result && result.success && result.token) {
+          state.token = result.token;
+          state.user = result.user;
+          sessionStorage.setItem('afinbo_admin_token', result.token);
+          sessionStorage.setItem('afinbo_admin_user', JSON.stringify(result.user));
+          showToast('Signed in successfully as Administrator', 'success');
+          showDashboardView();
+          loadAllData();
+        } else {
+          errEl.textContent = (result && result.error) || 'Invalid administrative credentials.';
+          errEl.classList.remove('hidden');
+        }
+      } catch (err) {
+        errEl.textContent = 'Connection error: ' + err.message;
+        errEl.classList.remove('hidden');
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i data-lucide="lock" class="w-4 h-4"></i><span>Secure Sign In</span>';
+        lucide.createIcons();
+      }
+    }
+
+    function mockOrRestLogin(user, pass) {
+      if (pass === 'AfinboAdmin2026!') {
+        return Promise.resolve({
+          success: true,
+          token: btoa(JSON.stringify({ user: user, exp: Date.now() + 86400000 })),
+          user: { username: user, name: 'AFINBO Administrator', role: 'superadmin' }
+        });
+      }
+      return Promise.resolve({ success: false, error: 'Invalid administrative password.' });
+    }
+
+    function handleLogout() {
+      sessionStorage.removeItem('afinbo_admin_token');
+      sessionStorage.removeItem('afinbo_admin_user');
+      localStorage.removeItem('afinbo_admin_token');
+      state.token = null;
+      state.user = null;
+      showToast('Logged out securely', 'info');
+      showLoginView();
+    }
+
+    /**
+     * Tab Navigation Switcher
+     */
+    function switchTab(tab) {
+      state.activeTab = tab;
+      const btnProducts = document.getElementById('tabBtnProducts');
+      const btnQuotes = document.getElementById('tabBtnQuotes');
+      const secProducts = document.getElementById('tabContentProducts');
+      const secQuotes = document.getElementById('tabContentQuotes');
+
+      if (tab === 'products') {
+        btnProducts.className = 'px-4 py-2 text-xs font-bold rounded-lg transition flex items-center gap-2 bg-white text-slate-900 shadow-2xs cursor-pointer';
+        btnQuotes.className = 'px-4 py-2 text-xs font-bold rounded-lg transition flex items-center gap-2 text-slate-600 hover:text-slate-900 cursor-pointer';
+        secProducts.classList.remove('hidden');
+        secQuotes.classList.add('hidden');
+      } else {
+        btnQuotes.className = 'px-4 py-2 text-xs font-bold rounded-lg transition flex items-center gap-2 bg-white text-slate-900 shadow-2xs cursor-pointer';
+        btnProducts.className = 'px-4 py-2 text-xs font-bold rounded-lg transition flex items-center gap-2 text-slate-600 hover:text-slate-900 cursor-pointer';
+        secQuotes.classList.remove('hidden');
+        secProducts.classList.add('hidden');
+      }
+      lucide.createIcons();
+    }
+
+    /**
+     * Load Products & Quotes from GAS Backend / Supabase
+     */
+    async function loadAllData() {
+      await Promise.all([loadProducts(), loadQuotes()]);
+    }
+
+    async function loadProducts() {
+      try {
+        if (typeof google !== 'undefined' && google.script && google.script.run) {
+          const res = await new Promise((resolve) => {
+            google.script.run
+              .withSuccessHandler(resolve)
+              .withFailureHandler((err) => resolve({ success: false, error: err.toString() }))
+              .getProductsAdmin(state.token);
+          });
+          state.products = (res && res.products) || [];
+        } else {
+          // Local fallback from memory or cache
+          state.products = state.products || [];
+        }
+        renderProductsTable();
+      } catch (err) {
+        console.error('Failed to load products:', err);
+      }
+    }
+
+    async function loadQuotes() {
+      try {
+        if (typeof google !== 'undefined' && google.script && google.script.run) {
+          const res = await new Promise((resolve) => {
+            google.script.run
+              .withSuccessHandler(resolve)
+              .withFailureHandler((err) => resolve({ success: false, error: err.toString() }))
+              .getQuotesAdmin(state.token, 'all');
+          });
+          state.quotes = (res && res.quotes) || [];
+        } else {
+          state.quotes = state.quotes || [];
+        }
+        renderQuotesTable();
+        updatePendingBadge();
+      } catch (err) {
+        console.error('Failed to load quotes:', err);
+      }
+    }
+
+    function updatePendingBadge() {
+      const pendingCount = state.quotes.filter(q => q.status === 'pending').length;
+      const badge = document.getElementById('badgePendingQuoteCount');
+      if (pendingCount > 0) {
+        badge.textContent = pendingCount;
+        badge.classList.remove('hidden');
+      } else {
+        badge.classList.add('hidden');
+      }
+    }
+
+    /**
+     * Render Products Data Table
+     */
+    function renderProductsTable() {
+      const tbody = document.getElementById('productsTableBody');
+      const empty = document.getElementById('productsEmptyState');
+      const countBadge = document.getElementById('badgeProductCount');
+      
+      countBadge.textContent = state.products.length;
+
+      let filtered = state.products;
+      if (state.searchQuery) {
+        const q = state.searchQuery.toLowerCase();
+        filtered = filtered.filter(p => 
+          (p.name && p.name.toLowerCase().includes(q)) ||
+          (p.model_number && p.model_number.toLowerCase().includes(q)) ||
+          (p.sku && p.sku.toLowerCase().includes(q)) ||
+          (p.category && p.category.toLowerCase().includes(q))
+        );
+      }
+
+      if (filtered.length === 0) {
+        tbody.innerHTML = '';
+        empty.classList.remove('hidden');
+        return;
+      }
+
+      empty.classList.add('hidden');
+      tbody.innerHTML = filtered.map(p => {
+        const statusBadge = p.status === 'active' 
+          ? '<span class="bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded-full font-bold text-[10px]">Active</span>'
+          : p.status === 'draft'
+          ? '<span class="bg-amber-50 text-amber-700 border border-amber-200 px-2 py-0.5 rounded-full font-bold text-[10px]">Draft</span>'
+          : '<span class="bg-slate-100 text-slate-600 border border-slate-200 px-2 py-0.5 rounded-full font-bold text-[10px]">Archived</span>';
+
+        const imgSrc = p.main_image_url || p.image || 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=120&auto=format&fit=crop&q=80';
+
+        return `
+          <tr class="hover:bg-slate-50/70 transition">
+            <td class="py-3 px-4">
+              <img src="${imgSrc}" alt="${p.name}" class="w-10 h-10 object-cover rounded-lg border border-slate-200 bg-white" />
+            </td>
+            <td class="py-3 px-4">
+              <div class="font-bold text-slate-900">${p.name}</div>
+              <div class="text-[11px] text-slate-500 line-clamp-1">${p.short_description || p.subtitle || ''}</div>
+            </td>
+            <td class="py-3 px-4">
+              <div class="font-semibold text-slate-800">${p.model_number || 'N/A'}</div>
+              <div class="text-[10px] text-slate-400 font-mono">${p.sku || 'No SKU'}</div>
+            </td>
+            <td class="py-3 px-4">
+              <span class="font-bold text-blue-900">${p.brand || 'AFINBO'}</span>
+              <span class="text-slate-400 block text-[10px]">${p.category || '-'}</span>
+            </td>
+            <td class="py-3 px-4">
+              ${statusBadge}
+            </td>
+            <td class="py-3 px-4 text-right">
+              <div class="flex items-center justify-end gap-1.5">
+                <button onclick="editProduct('${p.id}')" class="p-1.5 text-slate-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition" title="Edit Equipment">
+                  <i data-lucide="edit-2" class="w-3.5 h-3.5"></i>
+                </button>
+                <button onclick="deleteProduct('${p.id}')" class="p-1.5 text-slate-600 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition" title="Delete Equipment">
+                  <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                </button>
+              </div>
+            </td>
+          </tr>
+        `;
+      }).join('');
+
+      lucide.createIcons();
+    }
+
+    function filterProductsTable() {
+      state.searchQuery = document.getElementById('productSearchInput').value.trim();
+      renderProductsTable();
+    }
+
+    /**
+     * Render Quotes Data Table
+     */
+    function renderQuotesTable() {
+      const tbody = document.getElementById('quotesTableBody');
+      const empty = document.getElementById('quotesEmptyState');
+
+      let filtered = state.quotes;
+      if (state.quoteStatusFilter !== 'all') {
+        filtered = filtered.filter(q => q.status === state.quoteStatusFilter);
+      }
+
+      if (filtered.length === 0) {
+        tbody.innerHTML = '';
+        empty.classList.remove('hidden');
+        return;
+      }
+
+      empty.classList.add('hidden');
+      tbody.innerHTML = filtered.map(q => {
+        let statusBadge = '<span class="bg-rose-50 text-rose-700 border border-rose-200 px-2 py-0.5 rounded-full font-bold text-[10px]">Pending</span>';
+        if (q.status === 'contacted') {
+          statusBadge = '<span class="bg-blue-50 text-blue-700 border border-blue-200 px-2 py-0.5 rounded-full font-bold text-[10px]">Contacted</span>';
+        } else if (q.status === 'completed') {
+          statusBadge = '<span class="bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded-full font-bold text-[10px]">Completed</span>';
+        } else if (q.status === 'cancelled') {
+          statusBadge = '<span class="bg-slate-100 text-slate-600 border border-slate-200 px-2 py-0.5 rounded-full font-bold text-[10px]">Cancelled</span>';
+        }
+
+        const dateStr = q.created_at ? new Date(q.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : 'Recent';
+
+        return `
+          <tr class="hover:bg-slate-50/70 transition">
+            <td class="py-3 px-4 font-mono text-[11px] text-slate-500 whitespace-nowrap">
+              ${dateStr}
+            </td>
+            <td class="py-3 px-4">
+              <div class="font-bold text-slate-900">${q.customer_name}</div>
+              <div class="text-[11px] text-slate-500">${q.customer_email} &bull; ${q.customer_phone || ''}</div>
+              ${q.company_name ? `<div class="text-[10px] text-slate-400 font-semibold">${q.company_name}</div>` : ''}
+            </td>
+            <td class="py-3 px-4 font-bold text-slate-800">
+              ${q.product_name}
+            </td>
+            <td class="py-3 px-4 font-bold text-slate-900">
+              ${q.quantity || 1}
+            </td>
+            <td class="py-3 px-4">
+              ${statusBadge}
+            </td>
+            <td class="py-3 px-4 text-right">
+              <button onclick="openQuoteDetailModal('${q.id}')" class="bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs px-3 py-1.5 rounded-lg transition inline-flex items-center gap-1">
+                <i data-lucide="eye" class="w-3 h-3"></i>
+                <span>Review</span>
+              </button>
+            </td>
+          </tr>
+        `;
+      }).join('');
+
+      lucide.createIcons();
+    }
+
+    function filterQuotesByStatus(status) {
+      state.quoteStatusFilter = status;
+      ['all', 'pending', 'contacted', 'completed', 'cancelled'].forEach(s => {
+        const el = document.getElementById('qFilter' + s.charAt(0).toUpperCase() + s.slice(1));
+        if (el) {
+          if (s === status) {
+            el.className = 'px-3 py-1.5 rounded-lg bg-white text-slate-900 shadow-2xs font-bold';
+          } else {
+            el.className = 'px-3 py-1.5 rounded-lg text-slate-600 hover:text-slate-900 font-bold';
+          }
+        }
+      });
+      renderQuotesTable();
+    }
+
+    /**
+     * Product Modal Operations (Add/Edit)
+     */
+    function openProductModal(productData = null) {
+      const modal = document.getElementById('productModal');
+      const title = document.getElementById('productModalTitle');
+      const techSpecsContainer = document.getElementById('techSpecsContainer');
+      const featuresContainer = document.getElementById('featuresContainer');
+
+      techSpecsContainer.innerHTML = '';
+      featuresContainer.innerHTML = '';
+
+      if (productData) {
+        title.textContent = 'Edit Equipment: ' + productData.name;
+        document.getElementById('prodId').value = productData.id || '';
+        document.getElementById('prodName').value = productData.name || '';
+        document.getElementById('prodCategory').value = productData.category || 'Splicers';
+        document.getElementById('prodModelNumber').value = productData.model_number || '';
+        document.getElementById('prodSku').value = productData.sku || '';
+        document.getElementById('prodBrand').value = productData.brand || 'AFINBO';
+        document.getElementById('prodStatus').value = productData.status || 'active';
+        document.getElementById('prodMainImage').value = productData.main_image_url || productData.image || '';
+        document.getElementById('prodSubtitle').value = productData.short_description || productData.subtitle || '';
+        document.getElementById('prodOverview').value = productData.product_overview || productData.description || '';
+        document.getElementById('prodBestSeller').checked = Boolean(productData.is_best_seller || productData.isBestSeller);
+
+        // Populate Tech Specs
+        const specs = productData.technical_specs || productData.techSpecs || [];
+        if (Array.isArray(specs) && specs.length > 0) {
+          specs.forEach(s => addTechSpecRow(s.label || '', s.value || ''));
+        } else {
+          addTechSpecRow('Applicable Fiber', 'SM, MM, DS, NZDS');
+          addTechSpecRow('Splice Time', '6 seconds (Quick Mode)');
+        }
+
+        // Populate Features
+        const feats = productData.features || [];
+        if (Array.isArray(feats) && feats.length > 0) {
+          feats.forEach(f => addFeatureRow(f));
+        } else {
+          addFeatureRow('Core-to-core optical alignment technology');
+          addFeatureRow('Reinforced shock-proof and dust-resistant casing');
+        }
+      } else {
+        title.textContent = 'Add Equipment to Catalog';
+        document.getElementById('productForm').reset();
+        document.getElementById('prodId').value = '';
+        document.getElementById('prodStatus').value = 'active';
+        document.getElementById('prodBrand').value = 'AFINBO';
+        
+        // Defaults
+        addTechSpecRow('Applicable Fiber', 'Single Mode / Multi Mode');
+        addTechSpecRow('Battery Capacity', '300 Splice & Heat Cycles');
+        addFeatureRow('Industrial grade precision engineering');
+        addFeatureRow('Full NIST Traceable Calibration certificate included');
+      }
+
+      modal.classList.remove('hidden');
+      lucide.createIcons();
+    }
+
+    function closeProductModal() {
+      document.getElementById('productModal').classList.add('hidden');
+    }
+
+    function addTechSpecRow(label = '', value = '') {
+      const container = document.getElementById('techSpecsContainer');
+      const row = document.createElement('div');
+      row.className = 'flex items-center gap-2';
+      row.innerHTML = `
+        <input type="text" placeholder="Label (e.g. Cleave Angle)" value="${label}" class="spec-label w-1/2 px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs" />
+        <input type="text" placeholder="Value (e.g. < 0.5 deg)" value="${value}" class="spec-value w-1/2 px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs" />
+        <button type="button" onclick="this.parentElement.remove()" class="p-1.5 text-slate-400 hover:text-rose-600 rounded cursor-pointer">
+          <i data-lucide="x" class="w-3.5 h-3.5"></i>
+        </button>
+      `;
+      container.appendChild(row);
+      lucide.createIcons();
+    }
+
+    function addFeatureRow(text = '') {
+      const container = document.getElementById('featuresContainer');
+      const row = document.createElement('div');
+      row.className = 'flex items-center gap-2';
+      row.innerHTML = `
+        <input type="text" placeholder="Feature point (e.g. Automated blade rotation)" value="${text}" class="feature-text w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs" />
+        <button type="button" onclick="this.parentElement.remove()" class="p-1.5 text-slate-400 hover:text-rose-600 rounded cursor-pointer">
+          <i data-lucide="x" class="w-3.5 h-3.5"></i>
+        </button>
+      `;
+      container.appendChild(row);
+      lucide.createIcons();
+    }
+
+    async function handleProductSubmit(e) {
+      e.preventDefault();
+      const saveBtn = document.getElementById('saveProductBtn');
+      saveBtn.disabled = true;
+      saveBtn.textContent = 'Saving...';
+
+      // Gather Specs JSONB
+      const specLabels = document.querySelectorAll('.spec-label');
+      const specValues = document.querySelectorAll('.spec-value');
+      const technical_specs = [];
+      specLabels.forEach((lblEl, idx) => {
+        const l = lblEl.value.trim();
+        const v = specValues[idx] ? specValues[idx].value.trim() : '';
+        if (l && v) {
+          technical_specs.push({ label: l, value: v });
+        }
+      });
+
+      // Gather Features JSONB
+      const featureInputs = document.querySelectorAll('.feature-text');
+      const features = [];
+      featureInputs.forEach(fEl => {
+        const val = fEl.value.trim();
+        if (val) features.push(val);
+      });
+
+      const productPayload = {
+        id: document.getElementById('prodId').value || undefined,
+        name: document.getElementById('prodName').value.trim(),
+        category: document.getElementById('prodCategory').value,
+        model_number: document.getElementById('prodModelNumber').value.trim(),
+        sku: document.getElementById('prodSku').value.trim(),
+        brand: document.getElementById('prodBrand').value.trim(),
+        status: document.getElementById('prodStatus').value,
+        main_image_url: document.getElementById('prodMainImage').value.trim(),
+        short_description: document.getElementById('prodSubtitle').value.trim(),
+        product_overview: document.getElementById('prodOverview').value.trim(),
+        is_best_seller: document.getElementById('prodBestSeller').checked,
+        technical_specs: technical_specs,
+        features: features
+      };
+
+      try {
+        let res;
+        if (typeof google !== 'undefined' && google.script && google.script.run) {
+          res = await new Promise(resolve => {
+            google.script.run
+              .withSuccessHandler(resolve)
+              .withFailureHandler(err => resolve({ success: false, error: err.toString() }))
+              .saveProductAdmin(state.token, productPayload);
+          });
+        } else {
+          // Local fallback simulator
+          if (productPayload.id) {
+            const idx = state.products.findIndex(p => p.id === productPayload.id);
+            if (idx !== -1) state.products[idx] = productPayload;
+          } else {
+            productPayload.id = 'prod_' + Date.now();
+            state.products.unshift(productPayload);
+          }
+          res = { success: true, message: 'Equipment saved successfully' };
+        }
+
+        if (res && res.success) {
+          showToast(res.message || 'Equipment saved successfully', 'success');
+          closeProductModal();
+          await loadProducts();
+        } else {
+          showToast((res && res.error) || 'Failed to save equipment', 'error');
+        }
+      } catch (err) {
+        showToast('Error: ' + err.message, 'error');
+      } finally {
+        saveBtn.disabled = false;
+        saveBtn.textContent = 'Save Equipment';
+      }
+    }
+
+    function editProduct(productId) {
+      const prod = state.products.find(p => p.id === productId);
+      if (prod) {
+        openProductModal(prod);
+      }
+    }
+
+    async function deleteProduct(productId) {
+      if (!confirm('Are you sure you want to remove this equipment from the catalog?')) return;
+
+      try {
+        if (typeof google !== 'undefined' && google.script && google.script.run) {
+          const res = await new Promise(resolve => {
+            google.script.run
+              .withSuccessHandler(resolve)
+              .withFailureHandler(err => resolve({ success: false, error: err.toString() }))
+              .deleteProductAdmin(state.token, productId);
+          });
+          if (res && res.success) {
+            showToast('Equipment removed from catalog', 'info');
+            await loadProducts();
+          } else {
+            showToast((res && res.error) || 'Deletion failed', 'error');
+          }
+        } else {
+          state.products = state.products.filter(p => p.id !== productId);
+          renderProductsTable();
+          showToast('Equipment removed', 'info');
+        }
+      } catch (err) {
+        showToast('Error: ' + err.message, 'error');
+      }
+    }
+
+    /**
+     * Quote Details Modal & Status Update
+     */
+    function openQuoteDetailModal(quoteId) {
+      const quote = state.quotes.find(q => q.id === quoteId);
+      if (!quote) return;
+
+      document.getElementById('activeQuoteId').value = quote.id;
+      document.getElementById('qdCustomerName').textContent = quote.customer_name;
+      document.getElementById('qdCompanyName').textContent = quote.company_name || 'N/A';
+      
+      const emailEl = document.getElementById('qdCustomerEmail');
+      emailEl.textContent = quote.customer_email;
+      emailEl.href = 'mailto:' + quote.customer_email;
+
+      const phoneEl = document.getElementById('qdCustomerPhone');
+      phoneEl.textContent = quote.customer_phone || 'N/A';
+      phoneEl.href = quote.customer_phone ? 'tel:' + quote.customer_phone : '#';
+
+      document.getElementById('qdProductName').textContent = quote.product_name;
+      document.getElementById('qdQuantity').textContent = quote.quantity || 1;
+      document.getElementById('qdNotes').textContent = quote.notes || 'No customer notes provided.';
+      document.getElementById('qdStatusSelect').value = quote.status || 'pending';
+      document.getElementById('qdAdminNotes').value = quote.admin_notes || '';
+
+      const dateStr = quote.created_at ? new Date(quote.created_at).toLocaleString() : 'Recent';
+      document.getElementById('quoteModalDate').textContent = 'Submitted on: ' + dateStr;
+
+      document.getElementById('quoteModal').classList.remove('hidden');
+      lucide.createIcons();
+    }
+
+    function closeQuoteModal() {
+      document.getElementById('quoteModal').classList.add('hidden');
+    }
+
+    async function handleSaveQuoteStatus() {
+      const quoteId = document.getElementById('activeQuoteId').value;
+      const newStatus = document.getElementById('qdStatusSelect').value;
+      const adminNotes = document.getElementById('qdAdminNotes').value.trim();
+
+      try {
+        if (typeof google !== 'undefined' && google.script && google.script.run) {
+          const res = await new Promise(resolve => {
+            google.script.run
+              .withSuccessHandler(resolve)
+              .withFailureHandler(err => resolve({ success: false, error: err.toString() }))
+              .updateQuoteStatusAdmin(state.token, quoteId, newStatus, adminNotes);
+          });
+
+          if (res && res.success) {
+            showToast('Quote status updated to ' + newStatus, 'success');
+            closeQuoteModal();
+            await loadQuotes();
+          } else {
+            showToast((res && res.error) || 'Failed to update quote', 'error');
+          }
+        } else {
+          const q = state.quotes.find(item => item.id === quoteId);
+          if (q) {
+            q.status = newStatus;
+            q.admin_notes = adminNotes;
+          }
+          showToast('Quote status updated', 'success');
+          closeQuoteModal();
+          renderQuotesTable();
+          updatePendingBadge();
+        }
+      } catch (err) {
+        showToast('Error: ' + err.message, 'error');
+      }
+    }
+
+    async function handleDeleteActiveQuote() {
+      const quoteId = document.getElementById('activeQuoteId').value;
+      if (!confirm('Are you sure you want to permanently delete this quote request?')) return;
+
+      try {
+        if (typeof google !== 'undefined' && google.script && google.script.run) {
+          const res = await new Promise(resolve => {
+            google.script.run
+              .withSuccessHandler(resolve)
+              .withFailureHandler(err => resolve({ success: false, error: err.toString() }))
+              .deleteQuoteAdmin(state.token, quoteId);
+          });
+          if (res && res.success) {
+            showToast('Quote request deleted', 'info');
+            closeQuoteModal();
+            await loadQuotes();
+          } else {
+            showToast((res && res.error) || 'Delete failed', 'error');
+          }
+        } else {
+          state.quotes = state.quotes.filter(q => q.id !== quoteId);
+          closeQuoteModal();
+          renderQuotesTable();
+          updatePendingBadge();
+          showToast('Quote request deleted', 'info');
+        }
+      } catch (err) {
+        showToast('Error: ' + err.message, 'error');
+      }
+    }
+
+    /**
+     * Demo Data Wipe Utility
+     */
+    async function promptWipeDemoData() {
+      const confirmed = confirm(
+        '⚠️ CRITICAL ACTION: WIPE DEMO DATA\n\n' +
+        'This will permanently delete all demo products and quote records from the database.\n\n' +
+        'Are you sure you want to proceed?'
+      );
+      if (!confirmed) return;
+
+      const safetyPhrase = prompt('Please type "WIPE" in capital letters to confirm:');
+      if (safetyPhrase !== 'WIPE') {
+        showToast('Wipe operation cancelled.', 'info');
+        return;
+      }
+
+      try {
+        if (typeof google !== 'undefined' && google.script && google.script.run) {
+          const res = await new Promise(resolve => {
+            google.script.run
+              .withSuccessHandler(resolve)
+              .withFailureHandler(err => resolve({ success: false, error: err.toString() }))
+              .wipeDemoData(state.token);
+          });
+
+          if (res && res.success) {
+            showToast(res.message || 'Demo data wiped successfully.', 'success');
+            await loadAllData();
+          } else {
+            showToast((res && res.error) || 'Wipe operation failed', 'error');
+          }
+        } else {
+          state.products = [];
+          state.quotes = [];
+          renderProductsTable();
+          renderQuotesTable();
+          updatePendingBadge();
+          showToast('Demo data wiped from local view. Run schema_update.sql in Supabase SQL editor.', 'success');
+        }
+      } catch (err) {
+        showToast('Wipe error: ' + err.message, 'error');
+      }
+    }
+
+    /**
+     * Global Toast System
+     */
+    function showToast(message, type = 'success') {
+      const toast = document.getElementById('toast');
+      const msgEl = document.getElementById('toastMessage');
+      const iconEl = document.getElementById('toastIcon');
+
+      msgEl.textContent = message;
+      if (type === 'error') {
+        iconEl.setAttribute('data-lucide', 'alert-triangle');
+        iconEl.className = 'w-5 h-5 text-rose-400 flex-shrink-0';
+      } else if (type === 'info') {
+        iconEl.setAttribute('data-lucide', 'info');
+        iconEl.className = 'w-5 h-5 text-blue-400 flex-shrink-0';
+      } else {
+        iconEl.setAttribute('data-lucide', 'check-circle');
+        iconEl.className = 'w-5 h-5 text-emerald-400 flex-shrink-0';
+      }
+      lucide.createIcons();
+
+      toast.classList.remove('hidden');
+      setTimeout(() => {
+        toast.classList.add('hidden');
+      }, 4000);
+    }
+  </script>
+</body>
+</html>

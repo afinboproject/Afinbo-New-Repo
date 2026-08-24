@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { X, Send, CheckCircle2, Loader2, AlertCircle } from 'lucide-react';
 import { Product } from '../types';
 import { submitQuoteRequestToDb } from '../lib/supabase';
+import { triggerQuoteNotification } from '../lib/notifications';
 
 interface QuoteModalProps {
   isOpen: boolean;
@@ -41,6 +42,7 @@ export const QuoteModal: React.FC<QuoteModalProps> = ({
         phone: phone,
         company: company,
         productId: selectedProduct?.id,
+        productName: selectedProduct?.name,
         quantity: quantity,
         notes: message,
       });
@@ -48,6 +50,18 @@ export const QuoteModal: React.FC<QuoteModalProps> = ({
       if (!result.success) {
         throw new Error(result.error || 'Failed to submit quote request. Please try again.');
       }
+
+      // Trigger In-App Notification, sound chime & admin email dispatch
+      triggerQuoteNotification({
+        productName: selectedProduct ? selectedProduct.name : 'Fiber Optic Equipment Inquiry',
+        customerName: fullName.trim(),
+        customerEmail: email.trim().toLowerCase(),
+        customerPhone: phone.trim(),
+        companyName: company.trim() || undefined,
+        quantity: quantity,
+        notes: message.trim() || undefined,
+        quoteId: result.quoteRequestId,
+      });
 
       setSubmitted(true);
 

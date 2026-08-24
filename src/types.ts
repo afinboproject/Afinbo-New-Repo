@@ -8,9 +8,12 @@ export interface Product {
   name: string;
   category: string;
   brand?: string;
+  model?: string;
+  sku?: string;
   subtitle: string;
   description: string;
   isBestSeller?: boolean;
+  inStock?: boolean;
   image: string;
   gallery?: string[];
   specs: string[];
@@ -89,4 +92,28 @@ export interface DbAdmin {
   password_hash: string; // text
   name: string; // text
   created_at?: string;
+}
+
+export interface AdminNotification {
+  id: string;
+  type: 'quote_request';
+  title: string;
+  message: string;
+  customerName: string;
+  customerEmail: string;
+  customerPhone?: string;
+  companyName?: string;
+  productName: string;
+  quantity: number;
+  notes?: string;
+  quoteId?: string;
+  read: boolean;
+  createdAt: string;
+}
+
+export interface NotificationSettings {
+  emailAlertsEnabled: boolean;
+  adminEmail: string;
+  soundAlertsEnabled: boolean;
+  inAppBannerEnabled: boolean;
 }
