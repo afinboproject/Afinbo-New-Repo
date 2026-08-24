@@ -276,6 +276,63 @@ export const normalizeStringArray = (rawList: unknown): string[] => {
     .filter((s) => Boolean(s && s.trim()));
 };
 
+export const FALLBACK_PRODUCT_IMAGE =
+  'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?auto=format&fit=crop&w=800&q=80';
+
+// Global cache invalidation trigger for real-time storefront synchronization
+export const invalidateProductCache = () => {
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('afinbo:products_updated', { detail: { timestamp: Date.now() } }));
+  }
+};
+
+/**
+ * Uploads an image file to the Supabase Storage 'products' bucket
+ * and returns the permanent public URL.
+ */
+export async function uploadProductImageToStorage(
+  file: File
+): Promise<{ publicUrl: string | null; error: Error | null }> {
+  if (!isSupabaseConfigured()) {
+    return {
+      publicUrl: null,
+      error: new Error('Supabase is not configured. Please verify VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY.'),
+    };
+  }
+
+  try {
+    const fileExt = file.name.split('.').pop()?.toLowerCase() || 'jpg';
+    const cleanFileName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
+    const filePath = `products/${Date.now()}-${Math.random().toString(36).substring(2, 7)}-${cleanFileName}`;
+
+    // Upload to Supabase Storage 'products' bucket
+    const { error: uploadError } = await supabase.storage
+      .from('products')
+      .upload(filePath, file, {
+        cacheControl: '3600',
+        upsert: true,
+      });
+
+    if (uploadError) {
+      console.warn('Storage upload error (checking bucket existence):', uploadError.message);
+      return { publicUrl: null, error: new Error(uploadError.message) };
+    }
+
+    // Retrieve public URL
+    const { data } = supabase.storage.from('products').getPublicUrl(filePath);
+    const publicUrl = data?.publicUrl;
+
+    if (!publicUrl) {
+      return { publicUrl: null, error: new Error('Could not retrieve public URL from Supabase storage.') };
+    }
+
+    return { publicUrl, error: null };
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : 'Unexpected error during image upload';
+    return { publicUrl: null, error: new Error(msg) };
+  }
+}
+
 // Helper function to map a DB product or merge with rich UI metadata
 export const mapDbProductToUiProduct = (dbItem: any): Product => {
   if (!dbItem) {
@@ -290,7 +347,12 @@ export const mapDbProductToUiProduct = (dbItem: any): Product => {
   );
 
   const rawFeatures = dbItem.features || dbItem.specs || fallback?.features || fallback?.specs;
-  const rawTechSpecs = dbItem.technical_specs || dbItem.tech_specs || dbItem.techSpecs || fallback?.techSpecs;
+  const rawTechSpecs =
+    dbItem.technical_specs ||
+    dbItem.specifications ||
+    dbItem.tech_specs ||
+    dbItem.techSpecs ||
+    fallback?.techSpecs;
   const rawInTheBox = dbItem.in_the_box || dbItem.inTheBox || fallback?.inTheBox;
   const rawGallery = dbItem.gallery_urls || dbItem.gallery || (fallback?.gallery ? fallback.gallery : undefined);
 
@@ -298,27 +360,63 @@ export const mapDbProductToUiProduct = (dbItem: any): Product => {
   const normalizedTechSpecs = normalizeTechSpecs(rawTechSpecs);
   const normalizedInTheBox = normalizeStringArray(rawInTheBox);
 
+  // Check all possible database column aliases for the image URL
   const mainImage =
     dbItem.main_image_url ||
+    dbItem.image_url ||
     dbItem.image ||
+    dbItem.photo_url ||
     fallback?.image ||
-    'https://images.unsplash.com/photo-1581092580497-e0d23cbdf1dc?auto=format&fit=crop&w=1200&q=80';
+    FALLBACK_PRODUCT_IMAGE;
 
-  const categoryName = typeof dbItem.category === 'string' ? dbItem.category : (fallback?.category || 'Splicers');
-  const brandName = typeof dbItem.brand === 'string' ? dbItem.brand : (fallback?.brand || 'AFINBO');
-  const subtitle = dbItem.short_description || dbItem.subtitle || fallback?.subtitle || `${categoryName} • ${brandName}`;
-  const description = dbItem.product_overview || dbItem.description || fallback?.description || 'High precision fiber optic tool.';
+  const categoryName = typeof dbItem.category === 'string' && dbItem.category.trim()
+    ? dbItem.category
+    : (fallback?.category || 'Splicers');
+
+  const brandName = typeof dbItem.brand === 'string' && dbItem.brand.trim()
+    ? dbItem.brand
+    : (fallback?.brand || 'AFINBO');
+
+  const subtitle =
+    dbItem.short_description ||
+    dbItem.subtitle ||
+    fallback?.subtitle ||
+    `${categoryName} • ${brandName}`;
+
+  const description =
+    dbItem.product_overview ||
+    dbItem.overview ||
+    dbItem.description ||
+    fallback?.description ||
+    'High precision fiber optic tool.';
+
+  const isBestSeller =
+    dbItem.is_best_seller !== undefined
+      ? Boolean(dbItem.is_best_seller)
+      : dbItem.best_seller !== undefined
+      ? Boolean(dbItem.best_seller)
+      : Boolean(fallback?.isBestSeller);
+
+  let galleryArray: string[] = [mainImage];
+  if (Array.isArray(rawGallery) && rawGallery.length > 0) {
+    galleryArray = rawGallery.map(String).filter(Boolean);
+    if (!galleryArray.includes(mainImage)) {
+      galleryArray = [mainImage, ...galleryArray];
+    }
+  }
 
   return {
     id: String(dbItem.id || fallback?.id || 'prod-' + Date.now()),
     name: String(dbItem.name || fallback?.name || 'Fiber Optic Equipment'),
     category: categoryName,
     brand: brandName,
+    model: dbItem.model_number || dbItem.model || fallback?.model || '',
+    sku: dbItem.sku || fallback?.sku || '',
     subtitle: subtitle,
     description: description,
-    isBestSeller: Boolean(dbItem.is_best_seller ?? fallback?.isBestSeller),
+    isBestSeller: isBestSeller,
     image: mainImage,
-    gallery: Array.isArray(rawGallery) && rawGallery.length > 0 ? rawGallery.map(String) : [mainImage],
+    gallery: galleryArray,
     specs: normalizedFeatures.length > 0 ? normalizedFeatures : (fallback?.specs || ['High precision optical equipment']),
     techSpecs: normalizedTechSpecs.length > 0 ? normalizedTechSpecs : fallback?.techSpecs,
     features: normalizedFeatures.length > 0 ? normalizedFeatures : fallback?.features,
@@ -328,11 +426,12 @@ export const mapDbProductToUiProduct = (dbItem: any): Product => {
 
 /**
  * 3. Read Operations (Product Display & Filtering)
- * Queries products from the 'products' table in Supabase
+ * Queries products directly from the 'products' table in Supabase (no stale cache)
  */
 export async function fetchProductsFromDb(options?: {
   category?: string | null;
   searchQuery?: string | null;
+  forceRefresh?: boolean;
 }): Promise<{ products: Product[]; error: Error | null; isLive: boolean }> {
   // If not configured, gracefully return default catalog with client-side filter
   if (!isSupabaseConfigured()) {
@@ -361,7 +460,10 @@ export async function fetchProductsFromDb(options?: {
   }
 
   try {
-    let query = supabase.from('products').select('*');
+    let query = supabase
+      .from('products')
+      .select('*')
+      .order('created_at', { ascending: false });
 
     // Category filter against 'category' column
     if (options?.category) {
@@ -372,7 +474,7 @@ export async function fetchProductsFromDb(options?: {
     // Search input filter matching 'name' or 'description' using ilike
     if (options?.searchQuery && options.searchQuery.trim()) {
       const term = options.searchQuery.trim();
-      query = query.or(`name.ilike.%${term}%,description.ilike.%${term}%`);
+      query = query.or(`name.ilike.%${term}%,product_overview.ilike.%${term}%,short_description.ilike.%${term}%`);
     }
 
     const { data, error } = await query;
