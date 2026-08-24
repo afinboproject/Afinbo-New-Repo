@@ -222,35 +222,46 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const inputPassword = pass.trim();
 
     if (!inputUsername || !inputPassword) {
+      console.warn('[Admin Auth] Login rejected: Username or password is empty after trimming.');
       return {
         success: false,
         error: 'Please enter both username and password.',
       };
     }
 
+    console.log(`[Admin Auth] 🔍 Attempting login for username: "${inputUsername}"`);
+
     try {
-      // Step 1: Fetch the user record from the `admin` table matching the input username
+      // Step 1: Fetch user record from `admin` table using case-insensitive .ilike()
       const { data, error } = await supabase
         .from('admin')
         .select('*')
-        .eq('username', inputUsername)
+        .ilike('username', inputUsername)
         .maybeSingle();
 
-      // Step 2: Existence Check: If error occurs or if data is null/undefined (user not found),
-      // STOP the execution immediately and return an "Invalid credentials" error.
-      if (error || !data) {
-        if (error) {
-          console.warn('Supabase admin query error:', error.message);
-        }
+      // Diagnostics: Log query outcome and RLS status
+      if (error) {
+        console.error('[Admin Auth] ❌ Supabase query error (Check RLS SELECT policy on "admin" table):', error.message, error);
         return {
           success: false,
           error: 'Invalid credentials',
         };
       }
 
-      // Step 3: Password Verification against data.password_hash with bcrypt
+      if (!data) {
+        console.warn(`[Admin Auth] ⚠️ No user record found in 'admin' table matching username: "${inputUsername}" (Check if RLS is blocking SELECT for anon role or username is spelled differently).`);
+        return {
+          success: false,
+          error: 'Invalid credentials',
+        };
+      }
+
+      console.log(`[Admin Auth] ✅ User row found in Supabase: id=${data.id ?? 'N/A'}, username="${data.username}"`);
+
+      // Step 2: Extract password hash or plain text password field
       const storedHash = (data.password_hash ?? data.password ?? '') as string;
       if (!storedHash) {
+        console.error('[Admin Auth] ❌ User record exists but has no password_hash or password column populated.');
         return {
           success: false,
           error: 'Invalid credentials',
@@ -259,36 +270,48 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
       let isPasswordValid = false;
 
-      // Check if the stored string is formatted as a bcrypt hash ($2a$, $2b$, $2y$, etc.)
+      // Check if stored string is formatted as a valid bcrypt hash ($2a$, $2b$, $2y$, $2x$)
       const isBcryptFormat = /^\$2[abyx]\$\d{2}\$[./A-Za-z0-9]{53}$/.test(storedHash) || storedHash.startsWith('$2');
 
       if (isBcryptFormat) {
-        // Strict bcrypt verification
-        isPasswordValid = await verifyPassword(inputPassword, storedHash);
+        console.log('[Admin Auth] 🔐 Detected bcrypt hash format in database. Running bcrypt.compare()...');
+        try {
+          isPasswordValid = await verifyPassword(inputPassword, storedHash);
+          console.log(`[Admin Auth] 🔑 Bcrypt comparison evaluation result: ${isPasswordValid ? 'MATCH (true)' : 'MISMATCH (false)'}`);
+        } catch (bcryptErr) {
+          console.error('[Admin Auth] ❌ bcrypt.compare failed due to an error or invalid hash structure:', bcryptErr);
+          isPasswordValid = false;
+        }
       } else {
-        // Legacy plain text check: if it matches, immediately upgrade the record in Supabase to a bcrypt hash
-        if (inputPassword === storedHash) {
-          isPasswordValid = true;
+        console.log('[Admin Auth] ℹ️ Stored password is plain text (not bcrypt format). Running direct equality check...');
+        isPasswordValid = (inputPassword === storedHash);
+        console.log(`[Admin Auth] 🔑 Plain-text comparison evaluation result: ${isPasswordValid ? 'MATCH (true)' : 'MISMATCH (false)'}`);
+
+        // Upgrade plain text to bcrypt hash in database upon successful match
+        if (isPasswordValid) {
           try {
             const upgradedHash = await hashPassword(inputPassword, 10);
             await supabase
               .from('admin')
               .update({ password_hash: upgradedHash })
-              .eq('username', inputUsername);
-            console.log('Successfully upgraded admin password to bcrypt hash in Supabase.');
+              .eq('id', data.id ?? data.username);
+            console.log('[Admin Auth] 🛡️ Automatically upgraded plain-text password to bcrypt hash in Supabase.');
           } catch (upgradeErr) {
-            console.warn('Failed to upgrade plain password to bcrypt in Supabase:', upgradeErr);
+            console.warn('[Admin Auth] Failed to auto-upgrade plain password to bcrypt in Supabase:', upgradeErr);
           }
         }
       }
 
-      // Step 4: Fail Safe: Only grant access and save session if password verification returned true
+      // Step 3: Fail Safe Check
       if (!isPasswordValid) {
+        console.warn(`[Admin Auth] ⛔ Access denied: Password mismatch for user "${inputUsername}".`);
         return {
           success: false,
           error: 'Invalid credentials',
         };
       }
+
+      console.log(`[Admin Auth] 🎉 Access granted for user "${data.username || inputUsername}". Creating session...`);
 
       // Construct verified admin user payload
       const adminData: AdminUser = {
@@ -325,7 +348,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       window.dispatchEvent(new Event('afinbo_auth_change'));
       return { success: true };
     } catch (err: unknown) {
-      console.error('Admin authentication exception:', err);
+      console.error('[Admin Auth] ❌ Unhandled authentication exception:', err);
       return {
         success: false,
         error: 'Invalid credentials',
