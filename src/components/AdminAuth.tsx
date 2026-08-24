@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { supabase } from '../lib/supabase';
-import { useAuth, verifyPassword, AdminUser } from '../lib/auth';
+import { supabase, isSupabaseConfigured, getSupabaseConfig, saveSupabaseCredentials } from '../lib/supabase';
+import { useAuth, verifyPassword } from '../lib/auth';
 import { useRouter } from '../lib/router';
 import {
   ShieldCheck,
@@ -13,6 +13,12 @@ import {
   Loader2,
   ArrowRight,
   Sparkles,
+  Database,
+  CheckCircle2,
+  ExternalLink,
+  Copy,
+  Check,
+  Settings,
 } from 'lucide-react';
 
 interface AdminAuthProps {
@@ -36,12 +42,37 @@ export const AdminAuth: React.FC<AdminAuthProps> = ({ initialIsSignUp = false, o
   // UI state feedback
   const [errorMessage, setErrorMessage] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+  const [copiedSql, setCopiedSql] = useState<boolean>(false);
 
-  // Reset form errors and password
+  // Supabase connection configuration state & modal
+  const [isConfigModalOpen, setIsConfigModalOpen] = useState<boolean>(false);
+  const [customSupabaseUrl, setCustomSupabaseUrl] = useState<string>(() => getSupabaseConfig().url);
+  const [customSupabaseAnonKey, setCustomSupabaseAnonKey] = useState<string>(() => getSupabaseConfig().anonKey);
+  const [configSaveStatus, setConfigSaveStatus] = useState<string>('');
+
+  // Check if Supabase is connected
+  const configured = isSupabaseConfigured();
+
+  // Toggle between Sign In & Sign Up views
   const handleToggleView = (signUpMode: boolean) => {
     setIsSignUp(signUpMode);
     setErrorMessage('');
     setPassword('');
+  };
+
+  // Save Supabase credentials directly from UI
+  const handleSaveConnection = (e: React.FormEvent) => {
+    e.preventDefault();
+    const success = saveSupabaseCredentials(customSupabaseUrl, customSupabaseAnonKey);
+    if (success) {
+      setConfigSaveStatus('Supabase credentials saved successfully!');
+      setTimeout(() => {
+        setIsConfigModalOpen(false);
+        setConfigSaveStatus('');
+      }, 1200);
+    } else {
+      setConfigSaveStatus('Failed to save credentials. Please verify your inputs.');
+    }
   };
 
   // 2. Sign Up Handler
@@ -55,6 +86,12 @@ export const AdminAuth: React.FC<AdminAuthProps> = ({ initialIsSignUp = false, o
 
     if (!trimmedName || !trimmedEmail || !inputPassword) {
       alert('Please fill in all fields (Name, Email, Password).');
+      return;
+    }
+
+    if (!isSupabaseConfigured()) {
+      setIsConfigModalOpen(true);
+      alert('Supabase is not configured with your Project URL & Anon Key yet. Please provide your credentials in the setup window.');
       return;
     }
 
@@ -116,6 +153,12 @@ export const AdminAuth: React.FC<AdminAuthProps> = ({ initialIsSignUp = false, o
       return;
     }
 
+    if (!isSupabaseConfigured()) {
+      setIsConfigModalOpen(true);
+      alert('Supabase is not configured yet. Please provide your Project URL & Anon Key.');
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
@@ -156,7 +199,6 @@ export const AdminAuth: React.FC<AdminAuthProps> = ({ initialIsSignUp = false, o
       // Sync authentication session with App context
       await login(trimmedEmail, inputPassword);
 
-      // Trigger optional callback
       if (onSuccess) {
         onSuccess();
       }
@@ -172,12 +214,55 @@ export const AdminAuth: React.FC<AdminAuthProps> = ({ initialIsSignUp = false, o
     }
   };
 
+  const sqlSetupScript = `-- Run this in your Supabase SQL Editor to set up the 'admin' table & RLS policies
+CREATE TABLE IF NOT EXISTS public.admin (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    username TEXT UNIQUE NOT NULL,
+    email TEXT UNIQUE NOT NULL,
+    password_hash TEXT NOT NULL,
+    name TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
+);
+
+ALTER TABLE public.admin ENABLE ROW LEVEL SECURITY;
+
+-- Allow anonymous registration and select for login verification
+DROP POLICY IF EXISTS "Allow anon admin insert" ON public.admin;
+CREATE POLICY "Allow anon admin insert" ON public.admin FOR INSERT TO anon, authenticated WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Allow anon admin select" ON public.admin;
+CREATE POLICY "Allow anon admin select" ON public.admin FOR SELECT TO anon, authenticated USING (true);`;
+
+  const copySqlToClipboard = () => {
+    navigator.clipboard.writeText(sqlSetupScript);
+    setCopiedSql(true);
+    setTimeout(() => setCopiedSql(false), 2000);
+  };
+
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-4 sm:p-6 selection:bg-rose-100 selection:text-rose-900 font-sans antialiased">
       {/* Centered Auth Card Component */}
       <div className="relative w-full max-w-md bg-white border border-slate-200/90 rounded-3xl p-8 sm:p-10 shadow-xl shadow-slate-200/60 overflow-hidden">
         {/* Brand accent line */}
         <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-rose-600 via-rose-500 to-blue-600" />
+
+        {/* Top Connection Status Badge & Settings trigger */}
+        <div className="flex items-center justify-between mb-4">
+          <button
+            type="button"
+            onClick={() => setIsConfigModalOpen(true)}
+            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold border transition cursor-pointer ${
+              configured
+                ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
+                : 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100'
+            }`}
+            title="Click to view or edit Supabase connection credentials"
+          >
+            <Database className="w-3 h-3" />
+            <span>{configured ? 'Supabase Connected' : 'Supabase Config Required'}</span>
+            <Settings className="w-3 h-3 ml-0.5 opacity-70" />
+          </button>
+        </div>
 
         {/* Brand Header */}
         <div className="text-center mb-6">
@@ -240,8 +325,13 @@ export const AdminAuth: React.FC<AdminAuthProps> = ({ initialIsSignUp = false, o
         {errorMessage && (
           <div className="mb-4 text-xs text-rose-800 font-semibold bg-rose-50 p-3.5 rounded-xl border border-rose-200 flex items-start gap-2.5 animate-in fade-in slide-in-from-top-1 duration-200">
             <AlertTriangle className="w-4 h-4 text-rose-600 flex-shrink-0 mt-0.5" />
-            <div className="flex-1">
+            <div className="flex-1 space-y-1">
               <p className="font-medium text-rose-700">{errorMessage}</p>
+              {errorMessage.toLowerCase().includes('row-level security') && (
+                <p className="text-[11px] text-rose-600 mt-1">
+                  💡 Hint: Enable an anonymous INSERT policy on your Supabase <code>admin</code> table. Click "Supabase Config" above to view the SQL script.
+                </p>
+              )}
             </div>
           </div>
         )}
@@ -372,11 +462,11 @@ export const AdminAuth: React.FC<AdminAuthProps> = ({ initialIsSignUp = false, o
             </p>
           )}
 
-          <div className="mt-4">
+          <div className="mt-4 flex items-center justify-center gap-4 text-xs text-slate-400">
             <button
               type="button"
               onClick={() => router.push('/')}
-              className="text-xs text-slate-400 hover:text-slate-700 transition font-medium cursor-pointer inline-flex items-center gap-1"
+              className="hover:text-slate-700 transition font-medium cursor-pointer inline-flex items-center gap-1"
             >
               <span>&larr; Return to Public Website</span>
             </button>
@@ -384,11 +474,111 @@ export const AdminAuth: React.FC<AdminAuthProps> = ({ initialIsSignUp = false, o
         </div>
       </div>
 
+      {/* Supabase Connection Setup Modal */}
+      {isConfigModalOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 max-w-lg w-full shadow-2xl animate-in fade-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-lg bg-rose-50 text-rose-600 flex items-center justify-center font-bold">
+                  <Database className="w-4 h-4" />
+                </div>
+                <h3 className="text-base font-bold text-slate-900">Supabase Connection Settings</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsConfigModalOpen(false)}
+                className="text-slate-400 hover:text-slate-700 text-sm font-bold cursor-pointer p-1"
+              >
+                &times;
+              </button>
+            </div>
+
+            <p className="text-xs text-slate-600 mb-4 leading-relaxed">
+              Enter your live Supabase Project URL and Public Anon Key. These credentials will be stored securely in your browser's local store so signup and login save directly to your Supabase PostgreSQL database.
+            </p>
+
+            <form onSubmit={handleSaveConnection} className="space-y-3">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Supabase Project URL
+                </label>
+                <input
+                  type="url"
+                  required
+                  placeholder="https://xyzproject.supabase.co"
+                  value={customSupabaseUrl}
+                  onChange={(e) => setCustomSupabaseUrl(e.target.value)}
+                  className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg text-slate-900 focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-600"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Supabase Anon Key
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                  value={customSupabaseAnonKey}
+                  onChange={(e) => setCustomSupabaseAnonKey(e.target.value)}
+                  className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg text-slate-900 focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-600 font-mono"
+                />
+              </div>
+
+              {configSaveStatus && (
+                <p className="text-xs text-emerald-700 bg-emerald-50 p-2 rounded-lg font-semibold flex items-center gap-1.5">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>{configSaveStatus}</span>
+                </p>
+              )}
+
+              <div className="flex gap-2 pt-2">
+                <button
+                  type="submit"
+                  className="flex-1 py-2.5 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-xl transition cursor-pointer"
+                >
+                  Save & Connect
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsConfigModalOpen(false)}
+                  className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition cursor-pointer"
+                >
+                  Close
+                </button>
+              </div>
+            </form>
+
+            {/* SQL Helper Script to Copy */}
+            <div className="mt-5 pt-4 border-t border-slate-100">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-[11px] font-bold text-slate-700 uppercase tracking-wider">
+                  PostgreSQL Table & RLS Setup
+                </span>
+                <button
+                  type="button"
+                  onClick={copySqlToClipboard}
+                  className="inline-flex items-center gap-1 text-[11px] font-bold text-rose-600 hover:text-rose-700 cursor-pointer"
+                >
+                  {copiedSql ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+                  <span>{copiedSql ? 'Copied' : 'Copy SQL'}</span>
+                </button>
+              </div>
+              <pre className="text-[10px] bg-slate-900 text-slate-200 p-2.5 rounded-lg overflow-x-auto max-h-28 font-mono">
+                {sqlSetupScript}
+              </pre>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Security badge at bottom */}
       <div className="mt-6 text-center text-slate-400 text-[11px] flex items-center justify-center gap-2">
         <span>AFINBO Nigeria Telecoms</span>
         <span>•</span>
-        <span>Supabase Trigger Encrypted</span>
+        <span>Supabase PostgreSQL Integration</span>
       </div>
     </div>
   );

@@ -2,95 +2,183 @@ import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { DbProduct, DbCustomer, DbQuoteRequest, Product, TechSpec } from '../types';
 import { FEATURED_PRODUCTS } from '../data';
 
-// 1. Environment Configuration with specified fallback variables
-const getEnvVar = (key: string): string => {
+// 1. Environment Configuration with static references for Vite bundling
+export const getSupabaseConfig = (): { url: string; anonKey: string } => {
+  let url = '';
+  let anonKey = '';
+
+  // Static literal references for Vite AST replacement during build
   try {
-    if (typeof window !== 'undefined') {
-      const win = window as unknown as Record<string, string | undefined>;
-      if (win[key]) return win[key] as string;
-      if (win[`ENV_${key}`]) return win[`ENV_${key}`] as string;
-    }
-    const metaEnv = (import.meta as unknown as { env?: Record<string, string> }).env;
-    if (metaEnv) {
-      if (metaEnv[key]) return metaEnv[key];
-      if (metaEnv[`VITE_${key}`]) return metaEnv[`VITE_${key}`];
+    if (typeof import.meta !== 'undefined' && import.meta.env) {
+      if (import.meta.env.VITE_SUPABASE_URL) url = import.meta.env.VITE_SUPABASE_URL;
+      if (import.meta.env.VITE_SUPABASE_ANON_KEY) anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+      if (!url && (import.meta.env as unknown as Record<string, string>).SUPABASE_URL) {
+        url = (import.meta.env as unknown as Record<string, string>).SUPABASE_URL;
+      }
+      if (!anonKey && (import.meta.env as unknown as Record<string, string>).SUPABASE_ANON_KEY) {
+        anonKey = (import.meta.env as unknown as Record<string, string>).SUPABASE_ANON_KEY;
+      }
     }
   } catch {
     // Ignore environment read errors in restricted contexts
   }
-  return '';
+
+  // Browser global & localStorage overrides
+  if (typeof window !== 'undefined') {
+    try {
+      const win = window as unknown as Record<string, string | Record<string, string> | undefined>;
+      if (!url && typeof win.VITE_SUPABASE_URL === 'string') url = win.VITE_SUPABASE_URL;
+      if (!anonKey && typeof win.VITE_SUPABASE_ANON_KEY === 'string') anonKey = win.VITE_SUPABASE_ANON_KEY;
+      if (!url && typeof win.SUPABASE_URL === 'string') url = win.SUPABASE_URL;
+      if (!anonKey && typeof win.SUPABASE_ANON_KEY === 'string') anonKey = win.SUPABASE_ANON_KEY;
+
+      const envObj = win.__ENV__ as Record<string, string> | undefined;
+      if (!url && envObj?.VITE_SUPABASE_URL) url = envObj.VITE_SUPABASE_URL;
+      if (!anonKey && envObj?.VITE_SUPABASE_ANON_KEY) anonKey = envObj.VITE_SUPABASE_ANON_KEY;
+
+      // Saved via UI settings in localStorage
+      const storedUrl = localStorage.getItem('afinbo_supabase_url') || localStorage.getItem('supabase_url');
+      const storedKey = localStorage.getItem('afinbo_supabase_anon_key') || localStorage.getItem('supabase_anon_key');
+      if (!url && storedUrl) url = storedUrl;
+      if (!anonKey && storedKey) anonKey = storedKey;
+    } catch {
+      // Ignore localStorage errors
+    }
+  }
+
+  // Node/SSR process.env fallback
+  if (typeof process !== 'undefined' && process.env) {
+    if (!url && process.env.VITE_SUPABASE_URL) url = process.env.VITE_SUPABASE_URL;
+    if (!anonKey && process.env.VITE_SUPABASE_ANON_KEY) anonKey = process.env.VITE_SUPABASE_ANON_KEY;
+    if (!url && process.env.SUPABASE_URL) url = process.env.SUPABASE_URL;
+    if (!anonKey && process.env.SUPABASE_ANON_KEY) anonKey = process.env.SUPABASE_ANON_KEY;
+  }
+
+  return {
+    url: (url || '').trim(),
+    anonKey: (anonKey || '').trim(),
+  };
 };
 
-const rawUrl = getEnvVar('SUPABASE_URL');
-const rawKey = getEnvVar('SUPABASE_ANON_KEY');
+export const getSupabaseUrl = (): string => getSupabaseConfig().url;
+export const getSupabaseAnonKey = (): string => getSupabaseConfig().anonKey;
 
-const SUPABASE_URL: string = rawUrl || '';
-const SUPABASE_ANON_KEY: string = rawKey || '';
+// Save Supabase credentials dynamically (e.g. from UI settings modal)
+export const saveSupabaseCredentials = (url: string, anonKey: string): boolean => {
+  try {
+    const cleanUrl = (url || '').trim();
+    const cleanKey = (anonKey || '').trim();
+    if (typeof window !== 'undefined') {
+      if (cleanUrl) {
+        localStorage.setItem('afinbo_supabase_url', cleanUrl);
+        (window as unknown as Record<string, string>).VITE_SUPABASE_URL = cleanUrl;
+      } else {
+        localStorage.removeItem('afinbo_supabase_url');
+      }
+      if (cleanKey) {
+        localStorage.setItem('afinbo_supabase_anon_key', cleanKey);
+        (window as unknown as Record<string, string>).VITE_SUPABASE_ANON_KEY = cleanKey;
+      } else {
+        localStorage.removeItem('afinbo_supabase_anon_key');
+      }
+    }
+    // Re-initialize active client
+    activeClientInstance = createLiveClient();
+    return true;
+  } catch (err) {
+    console.error('Failed to save Supabase credentials:', err);
+    return false;
+  }
+};
 
 // Validate whether Supabase credentials are valid and live
 export const isSupabaseConfigured = (): boolean => {
-  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) return false;
+  const { url, anonKey } = getSupabaseConfig();
+  if (!url || !anonKey) return false;
   if (
-    SUPABASE_URL === 'YOUR_SUPABASE_PROJECT_URL' ||
-    SUPABASE_ANON_KEY === 'YOUR_SUPABASE_ANON_KEY'
+    url === 'YOUR_SUPABASE_PROJECT_URL' ||
+    anonKey === 'YOUR_SUPABASE_ANON_KEY' ||
+    url.includes('your-project') ||
+    anonKey.includes('your-anon-key')
   ) {
     return false;
   }
   try {
-    const parsed = new URL(SUPABASE_URL);
-    return (parsed.protocol === 'http:' || parsed.protocol === 'https:') && Boolean(SUPABASE_ANON_KEY);
+    const parsed = new URL(url);
+    return (parsed.protocol === 'http:' || parsed.protocol === 'https:') && Boolean(anonKey);
   } catch {
     return false;
   }
 };
 
-// Safe Supabase client initialization that NEVER throws on startup
-const createSafeSupabaseClient = (): SupabaseClient => {
+// Create a live Supabase client if configured, or a diagnostic mock that informs caller
+const createLiveClient = (): SupabaseClient => {
+  const { url, anonKey } = getSupabaseConfig();
   if (isSupabaseConfigured()) {
     try {
-      // Check if global CDN client exists
-      if (
-        typeof window !== 'undefined' &&
-        (window as unknown as { supabase?: { createClient: (url: string, key: string) => SupabaseClient } }).supabase?.createClient
-      ) {
-        return (window as unknown as { supabase: { createClient: (url: string, key: string) => SupabaseClient } }).supabase.createClient(
-          SUPABASE_URL,
-          SUPABASE_ANON_KEY
-        );
-      }
-
-      // Use npm package SDK
-      return createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+      return createClient(url, anonKey, {
         auth: {
           persistSession: true,
           autoRefreshToken: true,
         },
       });
     } catch (err) {
-      console.warn('Could not initialize live Supabase client, falling back to safe local mock:', err);
+      console.warn('Could not initialize live Supabase client:', err);
     }
   }
 
-  // Safe Fallback Mock Client if Supabase is unconfigured or invalid URL
-  // This completely prevents fatal "Invalid URL" unhandled crashes on Vercel
-  const safeMockQueryBuilder = {
-    select: () => safeMockQueryBuilder,
-    insert: () => safeMockQueryBuilder,
-    update: () => safeMockQueryBuilder,
-    delete: () => safeMockQueryBuilder,
-    eq: () => safeMockQueryBuilder,
-    ilike: () => safeMockQueryBuilder,
-    or: () => safeMockQueryBuilder,
-    limit: () => safeMockQueryBuilder,
-    single: async () => ({ data: null, error: null }),
-    maybeSingle: async () => ({ data: null, error: null }),
-    then: (resolve: (val: { data: unknown[]; error: null }) => void) => {
-      resolve({ data: [], error: null });
-    },
+  // Diagnostic mock client: Never silently fake success on writes/admin queries when unconfigured!
+  const unconfiguredError = {
+    message:
+      'Supabase is not configured with a valid Project URL and Anon Key. Please configure VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in your hosting environment variables or click "Configure Supabase" on the admin page.',
+    code: 'SUPABASE_UNCONFIGURED',
+    details: 'Missing valid Supabase URL or Anon Key.',
+  };
+
+  const createMockQuery = (tableName: string) => {
+    const query: Record<string, unknown> = {
+      select: () => query,
+      insert: async () => {
+        console.warn(`[Supabase Client] Attempted insert into "${tableName}" but Supabase is unconfigured.`);
+        return { data: null, error: unconfiguredError };
+      },
+      update: async () => {
+        console.warn(`[Supabase Client] Attempted update on "${tableName}" but Supabase is unconfigured.`);
+        return { data: null, error: unconfiguredError };
+      },
+      delete: async () => {
+        console.warn(`[Supabase Client] Attempted delete on "${tableName}" but Supabase is unconfigured.`);
+        return { data: null, error: unconfiguredError };
+      },
+      eq: () => query,
+      ilike: () => query,
+      or: () => query,
+      limit: () => query,
+      single: async () => {
+        if (tableName === 'products') {
+          return { data: FEATURED_PRODUCTS[0], error: null };
+        }
+        return { data: null, error: unconfiguredError };
+      },
+      maybeSingle: async () => {
+        if (tableName === 'products') {
+          return { data: FEATURED_PRODUCTS[0], error: null };
+        }
+        return { data: null, error: unconfiguredError };
+      },
+      then: (resolve: (val: { data: unknown[]; error: typeof unconfiguredError | null }) => void) => {
+        if (tableName === 'products') {
+          resolve({ data: FEATURED_PRODUCTS as unknown[], error: null });
+        } else {
+          resolve({ data: [], error: unconfiguredError });
+        }
+      },
+    };
+    return query;
   };
 
   const mockClient = {
-    from: () => safeMockQueryBuilder,
+    from: (table: string) => createMockQuery(table),
     auth: {
       getSession: async () => ({ data: { session: null }, error: null }),
       onAuthStateChange: () => ({ data: { subscription: { unsubscribe: () => {} } } }),
@@ -100,7 +188,21 @@ const createSafeSupabaseClient = (): SupabaseClient => {
   return mockClient;
 };
 
-export const supabase: SupabaseClient = createSafeSupabaseClient();
+let activeClientInstance: SupabaseClient = createLiveClient();
+
+// Export dynamic Supabase proxy
+export const supabase: SupabaseClient = new Proxy({} as SupabaseClient, {
+  get(_target, prop) {
+    if (!activeClientInstance) {
+      activeClientInstance = createLiveClient();
+    }
+    const val = (activeClientInstance as unknown as Record<string | symbol, unknown>)[prop];
+    if (typeof val === 'function') {
+      return val.bind(activeClientInstance);
+    }
+    return val;
+  },
+});
 
 export const formatSpecToString = (item: unknown): string => {
   if (!item) return '';
