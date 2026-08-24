@@ -33,6 +33,7 @@ import {
   Filter,
   Check
 } from 'lucide-react';
+import { AdminAuth } from './AdminAuth';
 import { Product, TechSpec, AdminNotification, NotificationSettings } from '../types';
 import { FEATURED_PRODUCTS } from '../data';
 import {
@@ -73,32 +74,7 @@ interface QuoteItem {
 
 export const AdminDashboard: React.FC = () => {
   const { navigate } = useRouter();
-  const { isAuthenticated, user, login, logout } = useAuth();
-
-  // Login form state
-  const [loginUser, setLoginUser] = useState('');
-  const [loginPass, setLoginPass] = useState('');
-  const [loginError, setLoginError] = useState('');
-  const [isLoggingIn, setIsLoggingIn] = useState(false);
-  const [inactivityNotice, setInactivityNotice] = useState<string | null>(() => {
-    try {
-      const reason = sessionStorage.getItem('afinbo_admin_logout_reason');
-      return reason === 'inactivity'
-        ? 'Your administrator session expired after 30 minutes of inactivity. Please sign in again.'
-        : null;
-    } catch {
-      return null;
-    }
-  });
-
-  // Listen to session expiry events
-  useEffect(() => {
-    const handleSessionExpired = () => {
-      setInactivityNotice('Your administrator session expired after 30 minutes of inactivity. Please sign in again.');
-    };
-    window.addEventListener('afinbo_session_expired', handleSessionExpired);
-    return () => window.removeEventListener('afinbo_session_expired', handleSessionExpired);
-  }, []);
+  const { isAuthenticated, user, logout } = useAuth();
 
   // Layout state
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
@@ -296,26 +272,6 @@ export const AdminDashboard: React.FC = () => {
       showToast('Failed to trigger test notification');
     } finally {
       setTestSending(false);
-    }
-  };
-
-  // Auth Submit Handlers
-  const handleLoginSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoginError('');
-    setIsLoggingIn(true);
-
-    try {
-      const result = await login(loginUser, loginPass);
-      if (!result.success) {
-        setLoginError(result.error || 'Invalid credentials');
-      } else {
-        showToast('Authenticated successfully. Welcome back to AFINBO Admin.');
-      }
-    } catch (err: unknown) {
-      setLoginError(err instanceof Error ? err.message : 'Authentication failed. Please try again.');
-    } finally {
-      setIsLoggingIn(false);
     }
   };
 
@@ -556,126 +512,10 @@ export const AdminDashboard: React.FC = () => {
   });
 
   // -------------------------------------------------------------
-  // RENDER: DISTINCT AUTHENTICATION LOGIN PORTAL (LIGHT SAAS DESIGN)
+  // RENDER: DISTINCT AUTHENTICATION LOGIN / SIGN UP PORTAL
   // -------------------------------------------------------------
   if (!isAuthenticated) {
-    return (
-      <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-4 sm:p-6 selection:bg-rose-100 selection:text-rose-900 font-sans antialiased">
-        <div className="relative w-full max-w-md bg-white border border-slate-200/90 rounded-3xl p-8 sm:p-10 shadow-xl shadow-slate-200/60 overflow-hidden">
-          {/* Top vibrant brand line */}
-          <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-rose-600 via-rose-500 to-blue-600" />
-
-          {/* AFINBO Logo (Clickable to return to homepage) */}
-          <div className="text-center mb-8">
-            <button
-              type="button"
-              onClick={() => navigate('/')}
-              className="inline-flex items-center gap-2.5 group cursor-pointer transition hover:opacity-90"
-              title="Return to AFINBO Home Page"
-            >
-              <div className="w-11 h-11 rounded-2xl bg-rose-600 flex items-center justify-center text-white font-black text-xl shadow-md shadow-rose-600/20 group-hover:scale-105 transition">
-                A
-              </div>
-              <span className="text-3xl font-black tracking-tight text-slate-900 group-hover:text-rose-600 transition">
-                AFINBO
-              </span>
-            </button>
-            <div className="mt-3 inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-100 border border-slate-200 text-[11px] font-bold text-slate-700">
-              <ShieldCheck className="w-3.5 h-3.5 text-rose-600" />
-              <span>Restricted Administrator Portal</span>
-            </div>
-            <p className="text-xs text-slate-500 mt-2">
-              Sign in with verified administrator credentials to manage equipment and procurement quotes.
-            </p>
-          </div>
-
-          <form onSubmit={handleLoginSubmit} className="space-y-4">
-            {inactivityNotice && (
-              <div className="text-xs text-amber-800 font-semibold bg-amber-50 p-3.5 rounded-xl border border-amber-200 flex items-start gap-2.5">
-                <Clock className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
-                <div className="flex-1">
-                  <p className="font-bold text-amber-900">Session Expired</p>
-                  <p className="text-[11px] text-amber-700 mt-0.5">{inactivityNotice}</p>
-                </div>
-              </div>
-            )}
-
-            <div>
-              <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
-                Username / Email
-              </label>
-              <input
-                type="text"
-                required
-                value={loginUser}
-                onChange={(e) => {
-                  setLoginUser(e.target.value);
-                  if (inactivityNotice) setInactivityNotice(null);
-                  if (loginError) setLoginError('');
-                }}
-                placeholder="admin"
-                className="w-full px-4 py-3 bg-white border border-slate-300 rounded-xl text-sm font-medium text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-600 transition shadow-2xs"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
-                Admin Password
-              </label>
-              <input
-                type="password"
-                required
-                value={loginPass}
-                onChange={(e) => {
-                  setLoginPass(e.target.value);
-                  if (inactivityNotice) setInactivityNotice(null);
-                  if (loginError) setLoginError('');
-                }}
-                placeholder="••••••••••••"
-                className="w-full px-4 py-3 bg-white border border-slate-300 rounded-xl text-sm font-medium text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-600 transition shadow-2xs"
-              />
-            </div>
-
-            {loginError && (
-              <div className="text-xs text-rose-700 font-semibold bg-rose-50 p-3 rounded-xl border border-rose-200 flex items-start gap-2">
-                <AlertTriangle className="w-4 h-4 text-rose-600 flex-shrink-0 mt-0.5" />
-                <span>{loginError}</span>
-              </div>
-            )}
-
-            <button
-              type="submit"
-              disabled={isLoggingIn}
-              className="w-full py-3.5 px-4 bg-rose-600 hover:bg-rose-700 active:bg-rose-800 text-white font-bold text-sm rounded-xl shadow-md shadow-rose-600/20 transition duration-150 flex items-center justify-center gap-2 cursor-pointer mt-6"
-            >
-              {isLoggingIn ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <Lock className="w-4 h-4" />
-              )}
-              <span>Unlock Admin Console</span>
-            </button>
-
-            <div className="pt-4 text-center border-t border-slate-100 mt-6">
-              <button
-                type="button"
-                onClick={() => navigate('/')}
-                className="text-xs text-slate-500 hover:text-slate-900 transition font-semibold cursor-pointer inline-flex items-center gap-1.5"
-              >
-                <span>&larr; Return to Public Website</span>
-              </button>
-            </div>
-          </form>
-        </div>
-
-        {/* Security badge at bottom */}
-        <div className="mt-8 text-center text-slate-400 text-[11px] flex items-center justify-center gap-2">
-          <span>AFINBO Nigeria Telecoms</span>
-          <span>•</span>
-          <span>256-Bit Encrypted Session</span>
-        </div>
-      </div>
-    );
+    return <AdminAuth onSuccess={() => showToast('Authenticated successfully. Welcome back to AFINBO Admin.')} />;
   }
 
   // -------------------------------------------------------------

@@ -13,7 +13,8 @@ export interface AdminUser {
 interface AuthContextType {
   isAuthenticated: boolean;
   user: AdminUser | null;
-  login: (username: string, pass: string) => Promise<{ success: boolean; error?: string }>;
+  login: (emailOrUser: string, pass: string) => Promise<{ success: boolean; error?: string }>;
+  signup: (name: string, email: string, pass: string) => Promise<{ success: boolean; error?: string }>;
   logout: (reason?: string) => void;
   lastActivity: number;
   inactivityTimeoutMs: number;
@@ -51,6 +52,7 @@ const AuthContext = createContext<AuthContextType>({
   isAuthenticated: false,
   user: null,
   login: async () => ({ success: false }),
+  signup: async () => ({ success: false }),
   logout: () => {},
   lastActivity: Date.now(),
   inactivityTimeoutMs: INACTIVITY_TIMEOUT_MS,
@@ -217,75 +219,166 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     };
   }, []);
 
-  const login = useCallback(async (username: string, pass: string): Promise<{ success: boolean; error?: string }> => {
-    const inputUsername = username.trim();
+  const signup = useCallback(async (name: string, email: string, pass: string): Promise<{ success: boolean; error?: string }> => {
+    const inputName = name.trim();
+    const inputEmail = email.trim().toLowerCase();
     const inputPassword = pass.trim();
 
-    if (!inputUsername || !inputPassword) {
-      console.warn('[Admin Auth] Login rejected: Username or password is empty after trimming.');
+    if (!inputName || !inputEmail || !inputPassword) {
       return {
         success: false,
-        error: 'Please enter both username and password.',
+        error: 'Please fill in all fields (Name, Email, Password).',
       };
     }
 
-    console.log(`[Admin Auth] 🔍 Attempting login for username: "${inputUsername}"`);
+    if (!inputEmail.includes('@') || !inputEmail.includes('.')) {
+      return {
+        success: false,
+        error: 'Please provide a valid email address.',
+      };
+    }
+
+    if (inputPassword.length < 6) {
+      return {
+        success: false,
+        error: 'Password must be at least 6 characters long.',
+      };
+    }
+
+    console.log(`[Admin Auth] 📝 Attempting admin sign up for: ${inputEmail}`);
 
     try {
-      // Step 1: Fetch user record from `admin` table using case-insensitive .ilike()
-      const { data, error } = await supabase
+      // 1. Check if user already exists
+      const { data: existingUser } = await supabase
         .from('admin')
-        .select('*')
-        .ilike('username', inputUsername)
+        .select('id, email, username')
+        .or(`email.ilike.${inputEmail},username.ilike.${inputEmail}`)
         .maybeSingle();
 
-      // Diagnostics: Log query outcome and RLS status
-      if (error) {
-        console.error('[Admin Auth] ❌ Supabase query error (Check RLS SELECT policy on "admin" table):', error.message, error);
+      if (existingUser) {
         return {
           success: false,
-          error: 'Invalid credentials',
+          error: 'An administrator account with this email or username already exists.',
+        };
+      }
+
+      // 2. Hash password securely using bcrypt (10 salt rounds)
+      const hashedPassword = await hashPassword(inputPassword, 10);
+      const usernameDerived = inputEmail.split('@')[0];
+
+      // 3. Insert new row into the `admin` table
+      const { error: insertError } = await supabase
+        .from('admin')
+        .insert([
+          {
+            name: inputName,
+            email: inputEmail,
+            username: usernameDerived,
+            password_hash: hashedPassword,
+            role: 'Administrator',
+            created_at: new Date().toISOString(),
+          },
+        ]);
+
+      if (insertError) {
+        console.error('[Admin Auth] ❌ Error creating admin user in Supabase:', insertError);
+        return {
+          success: false,
+          error: insertError.message || 'Failed to create admin account. Please check database permissions.',
+        };
+      }
+
+      console.log(`[Admin Auth] ✅ Admin account created successfully for: ${inputEmail}`);
+      return { success: true };
+    } catch (err: unknown) {
+      console.error('[Admin Auth] ❌ Exception during admin registration:', err);
+      return {
+        success: false,
+        error: err instanceof Error ? err.message : 'An unexpected error occurred during registration.',
+      };
+    }
+  }, []);
+
+  const login = useCallback(async (emailOrUser: string, pass: string): Promise<{ success: boolean; error?: string }> => {
+    const inputIdentifier = emailOrUser.trim();
+    const inputPassword = pass.trim();
+
+    if (!inputIdentifier || !inputPassword) {
+      console.warn('[Admin Auth] Login rejected: Email/Username or password is empty.');
+      return {
+        success: false,
+        error: 'Please enter both email/username and password.',
+      };
+    }
+
+    console.log(`[Admin Auth] 🔍 Attempting sign in for: "${inputIdentifier}"`);
+
+    try {
+      // Step 1: Query by email first using .ilike('email', inputIdentifier)
+      let { data, error } = await supabase
+        .from('admin')
+        .select('*')
+        .ilike('email', inputIdentifier)
+        .maybeSingle();
+
+      // If not found by email, try matching username (supports both email and username logins)
+      if (!data && !error) {
+        const userQuery = await supabase
+          .from('admin')
+          .select('*')
+          .ilike('username', inputIdentifier)
+          .maybeSingle();
+        data = userQuery.data;
+        error = userQuery.error;
+      }
+
+      // Step 2: Diagnostics & Existence check
+      if (error) {
+        console.error('[Admin Auth] ❌ Supabase query error:', error.message, error);
+        return {
+          success: false,
+          error: 'Invalid email or password',
         };
       }
 
       if (!data) {
-        console.warn(`[Admin Auth] ⚠️ No user record found in 'admin' table matching username: "${inputUsername}" (Check if RLS is blocking SELECT for anon role or username is spelled differently).`);
+        console.warn(`[Admin Auth] ⚠️ No user record found in 'admin' table for "${inputIdentifier}".`);
         return {
           success: false,
-          error: 'Invalid credentials',
+          error: 'Invalid email or password',
         };
       }
 
-      console.log(`[Admin Auth] ✅ User row found in Supabase: id=${data.id ?? 'N/A'}, username="${data.username}"`);
+      console.log(`[Admin Auth] ✅ User row found: id=${data.id ?? 'N/A'}, email="${data.email || 'N/A'}", username="${data.username || 'N/A'}"`);
 
-      // Step 2: Extract password hash or plain text password field
+      // Step 3: Extract password hash or plain text password
       const storedHash = (data.password_hash ?? data.password ?? '') as string;
       if (!storedHash) {
-        console.error('[Admin Auth] ❌ User record exists but has no password_hash or password column populated.');
+        console.error('[Admin Auth] ❌ User record exists but has no password_hash or password column.');
         return {
           success: false,
-          error: 'Invalid credentials',
+          error: 'Invalid email or password',
         };
       }
 
       let isPasswordValid = false;
 
-      // Check if stored string is formatted as a valid bcrypt hash ($2a$, $2b$, $2y$, $2x$)
+      // Check if stored string is formatted as a valid bcrypt hash
       const isBcryptFormat = /^\$2[abyx]\$\d{2}\$[./A-Za-z0-9]{53}$/.test(storedHash) || storedHash.startsWith('$2');
 
       if (isBcryptFormat) {
-        console.log('[Admin Auth] 🔐 Detected bcrypt hash format in database. Running bcrypt.compare()...');
+        console.log('[Admin Auth] 🔐 Verifying bcrypt hash with bcrypt.compare()...');
         try {
           isPasswordValid = await verifyPassword(inputPassword, storedHash);
-          console.log(`[Admin Auth] 🔑 Bcrypt comparison evaluation result: ${isPasswordValid ? 'MATCH (true)' : 'MISMATCH (false)'}`);
+          console.log(`[Admin Auth] 🔑 Password match result: ${isPasswordValid ? 'MATCH (true)' : 'MISMATCH (false)'}`);
         } catch (bcryptErr) {
-          console.error('[Admin Auth] ❌ bcrypt.compare failed due to an error or invalid hash structure:', bcryptErr);
+          console.error('[Admin Auth] ❌ bcrypt.compare error:', bcryptErr);
           isPasswordValid = false;
         }
       } else {
-        console.log('[Admin Auth] ℹ️ Stored password is plain text (not bcrypt format). Running direct equality check...');
+        console.log('[Admin Auth] ℹ️ Stored password is plain text. Evaluating direct equality check...');
         isPasswordValid = (inputPassword === storedHash);
-        console.log(`[Admin Auth] 🔑 Plain-text comparison evaluation result: ${isPasswordValid ? 'MATCH (true)' : 'MISMATCH (false)'}`);
+        console.log(`[Admin Auth] 🔑 Plain text match result: ${isPasswordValid ? 'MATCH (true)' : 'MISMATCH (false)'}`);
 
         // Upgrade plain text to bcrypt hash in database upon successful match
         if (isPasswordValid) {
@@ -297,35 +390,35 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
               .eq('id', data.id ?? data.username);
             console.log('[Admin Auth] 🛡️ Automatically upgraded plain-text password to bcrypt hash in Supabase.');
           } catch (upgradeErr) {
-            console.warn('[Admin Auth] Failed to auto-upgrade plain password to bcrypt in Supabase:', upgradeErr);
+            console.warn('[Admin Auth] Failed to auto-upgrade plain password to bcrypt:', upgradeErr);
           }
         }
       }
 
-      // Step 3: Fail Safe Check
+      // Step 4: Fail Safe
       if (!isPasswordValid) {
-        console.warn(`[Admin Auth] ⛔ Access denied: Password mismatch for user "${inputUsername}".`);
+        console.warn(`[Admin Auth] ⛔ Access denied: Password mismatch for "${inputIdentifier}".`);
         return {
           success: false,
-          error: 'Invalid credentials',
+          error: 'Invalid email or password',
         };
       }
 
-      console.log(`[Admin Auth] 🎉 Access granted for user "${data.username || inputUsername}". Creating session...`);
+      console.log(`[Admin Auth] 🎉 Access granted for "${data.name || data.email || inputIdentifier}". Creating admin session...`);
 
       // Construct verified admin user payload
       const adminData: AdminUser = {
         id: data.id ? String(data.id) : undefined,
-        username: data.username || inputUsername,
+        username: data.username || data.email?.split('@')[0] || inputIdentifier,
         name: data.name || data.full_name || 'AFINBO Administrator',
-        email: data.email || 'afinboproject@gmail.com',
-        role: data.role || 'Super Admin',
+        email: data.email || inputIdentifier,
+        role: data.role || 'Administrator',
       };
 
       const now = Date.now();
       const token = btoa(
         JSON.stringify({
-          user: adminData.username,
+          user: adminData.email || adminData.username,
           time: now,
           exp: now + INACTIVITY_TIMEOUT_MS,
         })
@@ -351,7 +444,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       console.error('[Admin Auth] ❌ Unhandled authentication exception:', err);
       return {
         success: false,
-        error: 'Invalid credentials',
+        error: 'Invalid email or password',
       };
     }
   }, []);
@@ -362,6 +455,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         isAuthenticated,
         user,
         login,
+        signup,
         logout,
         lastActivity,
         inactivityTimeoutMs: INACTIVITY_TIMEOUT_MS,
