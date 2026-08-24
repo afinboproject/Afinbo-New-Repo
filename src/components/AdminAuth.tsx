@@ -82,21 +82,20 @@ export const AdminAuth: React.FC<AdminAuthProps> = ({ initialMode = 'signin', on
 
     try {
       if (mode === 'signup') {
-        // Sign Up Action
+        // Sign Up Action - strictly register to Supabase and switch to Sign In mode
         const result = await signup(name, email, password);
 
         if (!result.success) {
-          setErrorMessage(result.error || 'Failed to create admin account.');
-        } else {
-          // Clear form fields
-          setName('');
-          setEmail('');
-          setPassword('');
-          // Automatically switch UI mode to Sign In
-          setMode('signin');
-          // Display success notification
-          setSuccessMessage('Account created successfully! Please sign in.');
+          setErrorMessage(result.error || 'Failed to register.');
+          return; // STOP execution here
         }
+
+        // Successfully created account: Clear fields and switch to signin mode
+        setName('');
+        setEmail('');
+        setPassword('');
+        setMode('signin');
+        setSuccessMessage('Account created successfully. Please sign in.');
       } else {
         // Sign In Action
         const result = await login(email, password);

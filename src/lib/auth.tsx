@@ -225,7 +225,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const inputPassword = pass.trim();
 
     if (!inputName || !inputEmail || !inputPassword) {
-      console.warn('[Admin Auth] Sign up rejected: Missing required fields.');
       return {
         success: false,
         error: 'Please fill in all fields (Name, Email, Password).',
@@ -246,149 +245,41 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       };
     }
 
-    console.log(`[Admin Auth] 📝 Attempting admin registration for email: "${inputEmail}", name: "${inputName}"`);
-
     try {
-      // 1. Check if user already exists in Supabase by email
-      try {
-        const { data: existingUser } = await supabase
-          .from('admin')
-          .select('id, email')
-          .ilike('email', inputEmail)
-          .maybeSingle();
+      // 1. Derive username from email (before @)
+      const generatedUsername = inputEmail.split('@')[0];
 
-        if (existingUser) {
-          console.warn(`[Admin Auth] ⚠️ Conflict: Admin account with email "${inputEmail}" already exists in Supabase.`);
-          return {
-            success: false,
-            error: 'An administrator account with this email already exists. Please sign in.',
-          };
-        }
-      } catch (checkErr) {
-        console.warn('[Admin Auth] Supabase existence check warning:', checkErr);
-      }
-
-      // Check local storage backup registry for duplicates
-      try {
-        const localAdminsRaw = localStorage.getItem('afinbo_registered_admins');
-        if (localAdminsRaw) {
-          const localAdmins = JSON.parse(localAdminsRaw) as Array<{ email?: string; username?: string }>;
-          const match = localAdmins.find(
-            (a) => a.email?.toLowerCase() === inputEmail || a.username?.toLowerCase() === inputEmail
-          );
-          if (match) {
-            return {
-              success: false,
-              error: 'An administrator account with this email already exists. Please sign in.',
-            };
-          }
-        }
-      } catch (localCheckErr) {
-        console.warn('[Admin Auth] Local existence check warning:', localCheckErr);
-      }
-
-      // 2. Hash password securely using bcrypt (10 salt rounds)
+      // 2. Hash incoming password using bcrypt (10 salt rounds)
       const hashedPassword = await hashPassword(inputPassword, 10);
-      const usernameDerived = inputEmail.split('@')[0] || inputName.toLowerCase().replace(/[^a-z0-9]/g, '');
 
-      // 3. Prepare payload matching the standard `admin` table columns: id, name, email, password_hash, created_at
-      const standardPayload: Record<string, unknown> = {
-        name: inputName,
-        email: inputEmail,
-        password_hash: hashedPassword,
-        created_at: new Date().toISOString(),
-      };
-
-      console.log('[Admin Auth] 🚀 Submitting insert to Supabase "admin" table:', {
-        ...standardPayload,
-        password_hash: '[REDACTED_BCRYPT_HASH]',
-      });
-
-      // 4. Attempt insert into Supabase `admin` table
-      // Note: We do NOT chain `.select()` to avoid triggering RLS SELECT policy errors during anonymous inserts
-      let insertError: { message?: string; details?: string; hint?: string; code?: string } | null = null;
-
-      // First attempt: Standard target schema (name, email, password_hash, created_at)
-      const res = await supabase.from('admin').insert([standardPayload]);
-      insertError = res.error;
-
-      // If standard insert returned a column/schema error, try including username and role or minimal fallback
-      if (insertError && (insertError.code === 'PGRST204' || insertError.message?.includes('column') || insertError.message?.includes('schema'))) {
-        console.warn('[Admin Auth] Retrying with extended payload (with username & role)...');
-        const extendedPayload = {
-          ...standardPayload,
-          username: usernameDerived,
-          role: 'Administrator',
-        };
-        const retryRes = await supabase.from('admin').insert([extendedPayload]);
-        if (!retryRes.error) {
-          insertError = null;
-        } else {
-          // Minimal fallback: name, email, password_hash only
-          const minPayload = {
+      // 3. Complete Supabase insert payload targeting 'admin' table
+      const { data, error } = await supabase
+        .from('admin')
+        .insert([
+          {
             name: inputName,
             email: inputEmail,
+            username: generatedUsername,
             password_hash: hashedPassword,
-          };
-          const minRes = await supabase.from('admin').insert([minPayload]);
-          insertError = minRes.error;
-        }
-      }
+          },
+        ]);
 
-      // Also try `admins` plural table if `admin` table was not found (42P01 or PGRST205)
-      if (insertError && (insertError.code === '42P01' || insertError.code === 'PGRST205' || insertError.message?.includes('does not exist'))) {
-        console.warn('[Admin Auth] Trying plural "admins" table...');
-        const pluralRes = await supabase.from('admins').insert([standardPayload]);
-        if (!pluralRes.error) {
-          insertError = null;
-        }
-      }
-
-      // 5. Always persist to local backup admin store so the admin can log in seamlessly
-      try {
-        const localAdminsRaw = localStorage.getItem('afinbo_registered_admins');
-        const localAdmins = localAdminsRaw ? JSON.parse(localAdminsRaw) : [];
-        const newAdminRecord = {
-          id: `admin_${Date.now()}`,
-          name: inputName,
-          email: inputEmail,
-          username: usernameDerived,
-          password_hash: hashedPassword,
-          role: 'Administrator',
-          created_at: new Date().toISOString(),
+      if (error) {
+        console.error("Supabase Insert Error:", error);
+        return {
+          success: false,
+          error: "Failed to register: " + error.message,
         };
-        localAdmins.push(newAdminRecord);
-        localStorage.setItem('afinbo_registered_admins', JSON.stringify(localAdmins));
-        console.log('[Admin Auth] 💾 Admin credentials backed up to local registry.');
-      } catch (localSaveErr) {
-        console.warn('[Admin Auth] Could not save to local registry:', localSaveErr);
       }
 
-      // 6. Evaluate Supabase outcome
-      if (insertError) {
-        console.error('[Admin Auth] ❌ Supabase insert returned notice on "admin" table:', insertError);
-
-        // If RLS blocked insert, provide explicit instructions in console
-        if (insertError.message?.includes('row-level security') || insertError.code === '42501') {
-          console.warn(
-            '[Admin Auth] ⚠️ Supabase Row-Level Security blocked anonymous INSERT. Please run the SQL policy:\n' +
-            'CREATE POLICY "Allow anon insert for admin" ON public.admin FOR INSERT TO anon, authenticated WITH CHECK (true);'
-          );
-        }
-
-        // Return success so admin is registered and can log in immediately
-        console.log('[Admin Auth] Registered locally & queued for Supabase.');
-        return { success: true };
-      }
-
-      console.log(`[Admin Auth] ✅ Admin record created successfully in Supabase for: ${inputEmail}`);
+      console.log(`[Admin Auth] ✅ Row created in 'admin' table for: ${inputEmail} (username: ${generatedUsername})`);
       return { success: true };
     } catch (err: unknown) {
       const exceptionMessage = err instanceof Error ? err.message : String(err);
-      console.error('[Admin Auth] ❌ Exception during admin registration:', err);
+      console.error("Supabase Insert Error (Exception):", err);
       return {
         success: false,
-        error: `Registration error: ${exceptionMessage}`,
+        error: "Failed to register: " + exceptionMessage,
       };
     }
   }, []);
