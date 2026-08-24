@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Box,
   FileText,
@@ -44,7 +44,7 @@ import {
   mapDbProductToUiProduct
 } from '../lib/supabase';
 import { useRouter } from '../lib/router';
-import { useAuth } from '../lib/auth';
+import { useAdminSession } from '../lib/useAdminSession';
 import {
   getStoredNotifications,
   markNotificationRead,
@@ -74,7 +74,6 @@ interface QuoteItem {
 
 export const AdminDashboard: React.FC = () => {
   const { navigate } = useRouter();
-  const { isAuthenticated, user, logout } = useAuth();
 
   // Layout state
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
@@ -136,6 +135,59 @@ export const AdminDashboard: React.FC = () => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 3500);
   };
+
+  // Comprehensive view state clearance callback for session timeout & logout
+  const clearDashboardViewState = useCallback(() => {
+    setIsProductModalOpen(false);
+    setEditingProductId(null);
+    setProdName('');
+    setProdCategory('Splicers');
+    setProdModel('');
+    setProdSku('');
+    setProdBrand('AFINBO');
+    setProdImage('');
+    setProdSubtitle('');
+    setProdOverview('');
+    setProdBestSeller(false);
+    setTechSpecs([
+      { label: 'Applicable Fiber', value: 'SM, MM, DS, NZDS' },
+      { label: 'Splice Time', value: '6 seconds (Quick Mode)' },
+    ]);
+    setFeatures([
+      'Core-to-core optical alignment technology',
+      'Reinforced shock-proof and dust-resistant casing',
+    ]);
+
+    setIsQuoteModalOpen(false);
+    setSelectedQuote(null);
+    setQuoteAdminNotes('');
+
+    setIsNotificationDrawerOpen(false);
+    setIsSettingsModalOpen(false);
+    setActiveInAppAlert(null);
+
+    setSearchQuery('');
+    setSelectedCategoryFilter('all');
+    setQuoteStatusFilter('all');
+    setActiveTab('products');
+    setIsMobileMenuOpen(false);
+    setToastMessage(null);
+    setTestSuccessMsg(null);
+  }, []);
+
+  // Admin session check & inactivity timer hook
+  const {
+    isAuthenticated,
+    user,
+    logout,
+    resetActivity,
+    formattedTimeRemaining,
+    timeRemainingMs,
+  } = useAdminSession({
+    onSessionExpired: clearDashboardViewState,
+    redirectTo: '/admin',
+    requireAuth: true,
+  });
 
   // Sync with URL search params (e.g. /admin?tab=quotes or /admin?tab=settings)
   useEffect(() => {
@@ -628,7 +680,10 @@ export const AdminDashboard: React.FC = () => {
             <div className="flex items-center gap-2 pl-2 border-l border-slate-200">
               <div className="hidden xl:block text-right">
                 <p className="text-xs font-bold text-slate-900 leading-none">{user?.name || 'Administrator'}</p>
-                <p className="text-[10px] text-emerald-600 font-medium mt-0.5">Authenticated Session</p>
+                <div className="flex items-center justify-end gap-1 text-[10px] text-slate-500 font-medium mt-0.5" title="Session auto-renews on activity. Expires after 30 minutes of inactivity.">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                  <span>Session: {formattedTimeRemaining}</span>
+                </div>
               </div>
 
               <button

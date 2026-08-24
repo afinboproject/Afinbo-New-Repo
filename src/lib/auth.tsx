@@ -225,6 +225,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const inputPassword = pass.trim();
 
     if (!inputName || !inputEmail || !inputPassword) {
+      console.warn('[Admin Auth] Sign up rejected: Missing required fields.');
       return {
         success: false,
         error: 'Please fill in all fields (Name, Email, Password).',
@@ -245,17 +246,22 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       };
     }
 
-    console.log(`[Admin Auth] 📝 Attempting admin sign up for: ${inputEmail}`);
+    console.log(`[Admin Auth] 📝 Attempting admin sign up for email: "${inputEmail}", name: "${inputName}"`);
 
     try {
       // 1. Check if user already exists
-      const { data: existingUser } = await supabase
+      const { data: existingUser, error: checkError } = await supabase
         .from('admin')
         .select('id, email, username')
         .or(`email.ilike.${inputEmail},username.ilike.${inputEmail}`)
         .maybeSingle();
 
+      if (checkError) {
+        console.warn('[Admin Auth] Existence check warning:', checkError.message);
+      }
+
       if (existingUser) {
+        console.warn(`[Admin Auth] ⚠️ Conflict: Admin account with email/username "${inputEmail}" already exists.`);
         return {
           success: false,
           error: 'An administrator account with this email or username already exists.',
@@ -264,37 +270,62 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
       // 2. Hash password securely using bcrypt (10 salt rounds)
       const hashedPassword = await hashPassword(inputPassword, 10);
-      const usernameDerived = inputEmail.split('@')[0];
 
-      // 3. Insert new row into the `admin` table
-      const { error: insertError } = await supabase
+      // 3. Payload preparation: Ensure all non-nullable columns are supplied
+      // Columns: name, email, username (generated from email prefix if empty), password_hash, role, created_at
+      const usernameDerived = inputEmail.split('@')[0] || inputName.toLowerCase().replace(/[^a-z0-9]/g, '');
+
+      const payload = {
+        name: inputName,
+        email: inputEmail,
+        username: usernameDerived,
+        password_hash: hashedPassword,
+        role: 'Administrator',
+        created_at: new Date().toISOString(),
+      };
+
+      console.log('[Admin Auth] 🚀 Submitting insert payload to Supabase "admin" table:', {
+        ...payload,
+        password_hash: '[REDACTED_BCRYPT_HASH]',
+      });
+
+      // 4. Insert new row into the `admin` table
+      const { data: insertData, error: insertError } = await supabase
         .from('admin')
-        .insert([
-          {
-            name: inputName,
-            email: inputEmail,
-            username: usernameDerived,
-            password_hash: hashedPassword,
-            role: 'Administrator',
-            created_at: new Date().toISOString(),
-          },
-        ]);
+        .insert([payload])
+        .select('*');
 
+      // 5. Explicit Error Logging & Verification
       if (insertError) {
-        console.error('[Admin Auth] ❌ Error creating admin user in Supabase:', insertError);
+        console.error('[Admin Auth] ❌ Supabase insert failed on "admin" table:');
+        console.error('  - Message:', insertError.message);
+        console.error('  - Details:', insertError.details);
+        console.error('  - Hint:', insertError.hint);
+        console.error('  - Code:', insertError.code);
+
+        // Build descriptive error message for UI display
+        let userErrorMessage = insertError.message || 'Failed to create admin account.';
+        if (insertError.details) {
+          userErrorMessage += ` (${insertError.details})`;
+        }
+        if (insertError.hint) {
+          userErrorMessage += ` Hint: ${insertError.hint}`;
+        }
+
         return {
           success: false,
-          error: insertError.message || 'Failed to create admin account. Please check database permissions.',
+          error: userErrorMessage,
         };
       }
 
-      console.log(`[Admin Auth] ✅ Admin account created successfully for: ${inputEmail}`);
+      console.log('[Admin Auth] ✅ Admin record created successfully in Supabase:', insertData);
       return { success: true };
     } catch (err: unknown) {
+      const exceptionMessage = err instanceof Error ? err.message : String(err);
       console.error('[Admin Auth] ❌ Exception during admin registration:', err);
       return {
         success: false,
-        error: err instanceof Error ? err.message : 'An unexpected error occurred during registration.',
+        error: `Registration error: ${exceptionMessage}`,
       };
     }
   }, []);
@@ -468,5 +499,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 };
 
 export const useAuth = () => useContext(AuthContext);
+
+export { useAdminSession } from './useAdminSession';
+export type { UseAdminSessionOptions, UseAdminSessionReturn } from './useAdminSession';
+
 
 
