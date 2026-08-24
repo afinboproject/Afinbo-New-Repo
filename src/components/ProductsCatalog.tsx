@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Search, ShoppingBag, RotateCcw, Eye, Database, Loader2, Sparkles } from 'lucide-react';
+import { Search, ShoppingBag, RotateCcw, Eye, Loader2, Sparkles } from 'lucide-react';
 import { Product } from '../types';
-import { fetchProductsFromDb, isSupabaseConfigured } from '../lib/supabase';
+import { fetchProductsFromDb } from '../lib/supabase';
 import { FEATURED_PRODUCTS } from '../data';
 import { Link, useRouter } from '../lib/router';
 
@@ -118,17 +118,9 @@ export const ProductsCatalog: React.FC<ProductsCatalogProps> = ({
             {/* Red Vertical Accent Line */}
             <div className="w-[3.5px] bg-rose-600 rounded-full h-10 mt-1 flex-shrink-0" />
             <div>
-              <div className="flex items-center gap-2">
-                <h1 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
-                  {getPageTitle()}
-                </h1>
-                {isSupabaseConfigured() && (
-                  <span className="hidden sm:inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full">
-                    <Database className="w-3 h-3" />
-                    Supabase Connected
-                  </span>
-                )}
-              </div>
+              <h1 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
+                {getPageTitle()}
+              </h1>
               <p className="text-xs text-slate-500 font-medium mt-0.5 flex items-center gap-1.5">
                 <Link
                   href="/"
