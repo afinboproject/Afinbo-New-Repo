@@ -1,32 +1,37 @@
+/*
+vercel.json setup:
+{
+  "rewrites": [
+    { "source": "/(.*)", "destination": "/index.html" }
+  ]
+}
+*/
+
 import React, { useState } from 'react';
+import { RouterProvider, useRouter, normalizePath } from './lib/router';
 import { Header } from './components/Header';
 import { Hero } from './components/Hero';
 import { ValueProps } from './components/ValueProps';
 import { CategoryGrid } from './components/CategoryGrid';
 import { FeaturedProducts } from './components/FeaturedProducts';
 import { ProductsCatalog } from './components/ProductsCatalog';
+import { AboutAfinbo } from './components/AboutAfinbo';
 import { Footer } from './components/Footer';
 import { QuoteModal } from './components/QuoteModal';
-import { CategoryModal } from './components/CategoryModal';
 import { ContactModal } from './components/ContactModal';
 import { SearchModal } from './components/SearchModal';
 import { ProductQuickViewModal } from './components/ProductQuickViewModal';
-import { Product, Category } from './types';
-import { CATEGORIES } from './data';
+import { Product } from './types';
 import { CheckCircle2, X } from 'lucide-react';
 
-export default function App() {
-  const [currentTab, setCurrentTab] = useState<'home' | 'products'>('products');
-  const [initialCatalogCategory, setInitialCatalogCategory] = useState<string | null>(null);
+function AppContent() {
+  const { currentPath } = useRouter();
 
   const [quoteModalOpen, setQuoteModalOpen] = useState(false);
   const [selectedProductForQuote, setSelectedProductForQuote] = useState<Product | null>(null);
 
   const [quickViewModalOpen, setQuickViewModalOpen] = useState(false);
   const [selectedProductForQuickView, setSelectedProductForQuickView] = useState<Product | null>(null);
-
-  const [categoryModalOpen, setCategoryModalOpen] = useState(false);
-  const [selectedCategory, setSelectedCategory] = useState<Category | null>(null);
 
   const [contactModalOpen, setContactModalOpen] = useState(false);
   const [searchModalOpen, setSearchModalOpen] = useState(false);
@@ -55,66 +60,114 @@ export default function App() {
     setQuickViewModalOpen(true);
   };
 
-  const handleSelectCategory = (category: Category) => {
-    setInitialCatalogCategory(category.name);
-    setCurrentTab('products');
-  };
+  // Route Resolution based on clean pathname
+  const normalized = normalizePath(currentPath);
 
-  const handleOpenCategoryByName = (categoryName: string) => {
-    setInitialCatalogCategory(categoryName);
-    setCurrentTab('products');
-  };
-
-  return (
-    <div className="min-h-screen bg-white text-slate-900 font-sans antialiased selection:bg-rose-100 selection:text-rose-900 flex flex-col justify-between">
-      <div>
-        {/* 1. Header / Navigation */}
-        <Header
-          currentTab={currentTab}
-          onSelectTab={(tab) => {
-            setCurrentTab(tab);
-            if (tab === 'home') setInitialCatalogCategory(null);
-          }}
-          onRequestQuote={handleOpenGeneralQuote}
-          onOpenSearch={() => setSearchModalOpen(true)}
-        />
-
-        {/* Dynamic Main View */}
-        {currentTab === 'home' ? (
-          <>
+  const renderCurrentView = () => {
+    switch (normalized) {
+      case '/':
+        return (
+          <main>
             {/* Hero Section */}
-            <Hero
-              onExploreCatalog={() => setCurrentTab('products')}
-              onContactSales={() => setContactModalOpen(true)}
-            />
+            <Hero onContactSales={() => setContactModalOpen(true)} />
 
             {/* Value Props Section */}
             <ValueProps />
 
-            {/* Category Grid ("Shop by Category") */}
-            <CategoryGrid onSelectCategory={handleSelectCategory} />
+            {/* Category Grid ("Shop by Category") with Clean Links */}
+            <CategoryGrid />
 
             {/* Featured Equipment */}
             <FeaturedProducts
               onRequestQuoteProduct={handleOpenProductQuote}
               onQuickViewProduct={handleOpenQuickView}
-              onViewAllProducts={() => setCurrentTab('products')}
             />
-          </>
-        ) : (
-          /* Store / Products Catalog View */
-          <ProductsCatalog
-            onRequestQuoteProduct={handleOpenProductQuote}
-            onQuickViewProduct={handleOpenQuickView}
-            onNavigateHome={() => setCurrentTab('home')}
-            initialCategory={initialCatalogCategory}
-          />
-        )}
+          </main>
+        );
+
+      case '/about-afinbo':
+        return (
+          <main>
+            <AboutAfinbo
+              onRequestQuote={handleOpenGeneralQuote}
+              onOpenContact={() => setContactModalOpen(true)}
+            />
+          </main>
+        );
+
+      case '/strippers':
+        return (
+          <main>
+            <ProductsCatalog
+              routeCategory="Strippers"
+              onRequestQuoteProduct={handleOpenProductQuote}
+              onQuickViewProduct={handleOpenQuickView}
+            />
+          </main>
+        );
+
+      case '/cleavers':
+        return (
+          <main>
+            <ProductsCatalog
+              routeCategory="Cleavers"
+              onRequestQuoteProduct={handleOpenProductQuote}
+              onQuickViewProduct={handleOpenQuickView}
+            />
+          </main>
+        );
+
+      case '/testers':
+        return (
+          <main>
+            <ProductsCatalog
+              routeCategory="Testers"
+              onRequestQuoteProduct={handleOpenProductQuote}
+              onQuickViewProduct={handleOpenQuickView}
+            />
+          </main>
+        );
+
+      case '/splicers':
+        return (
+          <main>
+            <ProductsCatalog
+              routeCategory="Splicers"
+              onRequestQuoteProduct={handleOpenProductQuote}
+              onQuickViewProduct={handleOpenQuickView}
+            />
+          </main>
+        );
+
+      case '/products':
+      default:
+        return (
+          <main>
+            <ProductsCatalog
+              routeCategory={null}
+              onRequestQuoteProduct={handleOpenProductQuote}
+              onQuickViewProduct={handleOpenQuickView}
+            />
+          </main>
+        );
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-white text-slate-900 font-sans antialiased selection:bg-rose-100 selection:text-rose-900 flex flex-col justify-between">
+      <div>
+        {/* Header with Clean Path Navigation & Active State */}
+        <Header
+          onRequestQuote={handleOpenGeneralQuote}
+          onOpenSearch={() => setSearchModalOpen(true)}
+        />
+
+        {/* Dynamic Route View */}
+        {renderCurrentView()}
       </div>
 
-      {/* Footer */}
+      {/* Footer with Clean Paths */}
       <Footer
-        onOpenCategory={handleOpenCategoryByName}
         onOpenContact={() => setContactModalOpen(true)}
       />
 
@@ -133,14 +186,6 @@ export default function App() {
         onSuccess={showToast}
       />
 
-      <CategoryModal
-        isOpen={categoryModalOpen}
-        onClose={() => setCategoryModalOpen(false)}
-        category={selectedCategory}
-        onRequestQuoteProduct={handleOpenProductQuote}
-        onQuickViewProduct={handleOpenQuickView}
-      />
-
       <ContactModal
         isOpen={contactModalOpen}
         onClose={() => setContactModalOpen(false)}
@@ -152,7 +197,6 @@ export default function App() {
         onClose={() => setSearchModalOpen(false)}
         onRequestQuoteProduct={handleOpenProductQuote}
         onQuickViewProduct={handleOpenQuickView}
-        onSelectCategory={handleSelectCategory}
       />
 
       {/* Global Toast Notification */}
@@ -162,12 +206,20 @@ export default function App() {
           <div className="flex-1 text-xs leading-relaxed">{toastMessage}</div>
           <button
             onClick={() => setToastMessage(null)}
-            className="text-slate-400 hover:text-white p-0.5 rounded-full"
+            className="text-slate-400 hover:text-white p-0.5 rounded-full cursor-pointer"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
       )}
     </div>
+  );
+}
+
+export default function App() {
+  return (
+    <RouterProvider>
+      <AppContent />
+    </RouterProvider>
   );
 }

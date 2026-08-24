@@ -3,17 +3,16 @@ import { ShoppingBag, ArrowRight, Eye } from 'lucide-react';
 import { FEATURED_PRODUCTS } from '../data';
 import { Product } from '../types';
 import { fetchProductsFromDb } from '../lib/supabase';
+import { Link } from '../lib/router';
 
 interface FeaturedProductsProps {
   onRequestQuoteProduct: (product: Product) => void;
   onQuickViewProduct: (product: Product) => void;
-  onViewAllProducts: () => void;
 }
 
 export const FeaturedProducts: React.FC<FeaturedProductsProps> = ({
   onRequestQuoteProduct,
   onQuickViewProduct,
-  onViewAllProducts,
 }) => {
   const [products, setProducts] = useState<Product[]>(FEATURED_PRODUCTS.slice(0, 4));
 
@@ -42,18 +41,18 @@ export const FeaturedProducts: React.FC<FeaturedProductsProps> = ({
                 Featured Equipment
               </h2>
               <p className="text-slate-500 text-sm mt-1 font-normal">
-                Top-rated tools trusted by professionals worldwide.
+                Top-rated tools trusted by telecom professionals across West Africa.
               </p>
             </div>
           </div>
 
-          <button
-            onClick={onViewAllProducts}
+          <Link
+            href="/products"
             className="text-rose-600 hover:text-rose-700 font-bold text-sm flex items-center gap-1 hover:underline cursor-pointer self-start sm:self-auto"
           >
             <span>View All Products</span>
             <ArrowRight className="w-4 h-4" />
-          </button>
+          </Link>
         </div>
 
         {/* 4 Featured Product Cards Grid */}
@@ -143,4 +142,3 @@ export const FeaturedProducts: React.FC<FeaturedProductsProps> = ({
     </section>
   );
 };
-

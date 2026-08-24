@@ -1,12 +1,13 @@
 import React from 'react';
 import { Shield, MessageSquare, Linkedin, Twitter } from 'lucide-react';
+import { Link } from '../lib/router';
 
 interface FooterProps {
-  onOpenCategory: (categoryName: string) => void;
   onOpenContact: () => void;
+  onOpenAdminAuth?: () => void;
 }
 
-export const Footer: React.FC<FooterProps> = ({ onOpenCategory, onOpenContact }) => {
+export const Footer: React.FC<FooterProps> = ({ onOpenContact, onOpenAdminAuth }) => {
   return (
     <footer className="bg-slate-50 border-t border-slate-200/60 pt-12 pb-8">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -16,11 +17,11 @@ export const Footer: React.FC<FooterProps> = ({ onOpenCategory, onOpenContact })
           
           {/* Column 1: Brand Info */}
           <div>
-            <span className="text-2xl font-black text-blue-950 tracking-tight block mb-3">
+            <Link href="/" className="text-2xl font-black text-blue-950 tracking-tight block mb-3 hover:text-blue-900 transition">
               AFINBO
-            </span>
+            </Link>
             <p className="text-slate-500 text-xs leading-relaxed max-w-xs">
-              Your trusted partner for professional fiber optic tools, advanced testing equipment, and comprehensive calibration services.
+              Your trusted partner for professional fiber optic tools, advanced testing equipment, and comprehensive calibration services across West Africa.
             </p>
           </div>
 
@@ -31,36 +32,44 @@ export const Footer: React.FC<FooterProps> = ({ onOpenCategory, onOpenContact })
             </h4>
             <ul className="space-y-2.5 text-xs text-slate-600">
               <li>
-                <button
-                  onClick={() => onOpenCategory('Strippers')}
-                  className="hover:text-rose-600 transition cursor-pointer"
+                <Link
+                  href="/strippers"
+                  className="hover:text-rose-600 transition"
                 >
                   Strippers
-                </button>
+                </Link>
               </li>
               <li>
-                <button
-                  onClick={() => onOpenCategory('Cleavers')}
-                  className="hover:text-rose-600 transition cursor-pointer"
+                <Link
+                  href="/cleavers"
+                  className="hover:text-rose-600 transition"
                 >
                   Cleavers
-                </button>
+                </Link>
               </li>
               <li>
-                <button
-                  onClick={() => onOpenCategory('Testers')}
-                  className="hover:text-rose-600 transition cursor-pointer"
+                <Link
+                  href="/testers"
+                  className="hover:text-rose-600 transition"
                 >
                   Testers
-                </button>
+                </Link>
               </li>
               <li>
-                <button
-                  onClick={() => onOpenCategory('Splicers')}
-                  className="hover:text-rose-600 transition cursor-pointer"
+                <Link
+                  href="/splicers"
+                  className="hover:text-rose-600 transition"
                 >
                   Splicers
-                </button>
+                </Link>
+              </li>
+              <li>
+                <Link
+                  href="/products"
+                  className="hover:text-rose-600 transition font-semibold text-blue-600"
+                >
+                  View Full Catalog →
+                </Link>
               </li>
             </ul>
           </div>
@@ -72,29 +81,34 @@ export const Footer: React.FC<FooterProps> = ({ onOpenCategory, onOpenContact })
             </h4>
             <ul className="space-y-2.5 text-xs text-slate-600">
               <li>
-                <button onClick={onOpenContact} className="hover:text-rose-600 transition cursor-pointer">
-                  About Us
-                </button>
+                <Link href="/about-afinbo" className="hover:text-rose-600 transition">
+                  About AFINBO
+                </Link>
               </li>
               <li>
-                <button onClick={onOpenContact} className="hover:text-rose-600 transition cursor-pointer">
-                  Contact Us
-                </button>
-              </li>
-              <li>
-                <button onClick={onOpenContact} className="hover:text-rose-600 transition cursor-pointer">
+                <Link href="/about-afinbo" className="hover:text-rose-600 transition">
                   Calibration Services
+                </Link>
+              </li>
+              <li>
+                <button 
+                  onClick={onOpenContact} 
+                  className="hover:text-rose-600 transition cursor-pointer text-left"
+                >
+                  Contact Sales & Engineering
                 </button>
               </li>
-              <li className="pt-1">
-                <a
-                  href="#admin"
-                  className="inline-flex items-center gap-1.5 text-slate-600 hover:text-slate-900 transition"
-                >
-                  <Shield className="w-3.5 h-3.5 text-slate-500" />
-                  <span>Admin Sign In</span>
-                </a>
-              </li>
+              {onOpenAdminAuth && (
+                <li className="pt-1">
+                  <button
+                    onClick={onOpenAdminAuth}
+                    className="inline-flex items-center gap-1.5 text-slate-600 hover:text-slate-900 transition cursor-pointer"
+                  >
+                    <Shield className="w-3.5 h-3.5 text-slate-500" />
+                    <span>Admin Portal</span>
+                  </button>
+                </li>
+              )}
             </ul>
           </div>
 
@@ -107,7 +121,7 @@ export const Footer: React.FC<FooterProps> = ({ onOpenCategory, onOpenContact })
               Whitesand Avenue, Ikate Lagos
             </p>
             <p className="text-slate-600 text-xs mb-3 font-medium">
-              Phone: +2348033922029
+              Phone: +234 803 392 2029
             </p>
 
             {/* WhatsApp Us Button */}
@@ -129,10 +143,10 @@ export const Footer: React.FC<FooterProps> = ({ onOpenCategory, onOpenContact })
           <p>© 2026 Afinbo Nigeria LTD. All rights reserved.</p>
 
           <div className="flex items-center space-x-4">
-            <a href="#" className="text-slate-400 hover:text-slate-600 transition" aria-label="LinkedIn">
+            <a href="https://linkedin.com" target="_blank" rel="noopener noreferrer" className="text-slate-400 hover:text-slate-600 transition" aria-label="LinkedIn">
               <Linkedin className="w-4 h-4" />
             </a>
-            <a href="#" className="text-slate-400 hover:text-slate-600 transition" aria-label="Twitter">
+            <a href="https://twitter.com" target="_blank" rel="noopener noreferrer" className="text-slate-400 hover:text-slate-600 transition" aria-label="Twitter">
               <Twitter className="w-4 h-4" />
             </a>
           </div>

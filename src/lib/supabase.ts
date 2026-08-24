@@ -148,7 +148,8 @@ export async function fetchProductsFromDb(options?: {
         (p) =>
           p.category.toLowerCase().includes(cat) ||
           cat.includes(p.category.toLowerCase()) ||
-          p.name.toLowerCase().includes(cat)
+          p.name.toLowerCase().includes(cat) ||
+          (p.subtitle && p.subtitle.toLowerCase().includes(cat))
       );
     }
     if (options?.searchQuery && options.searchQuery.trim()) {
@@ -167,9 +168,10 @@ export async function fetchProductsFromDb(options?: {
   try {
     let query = supabase.from('products').select('*');
 
-    // Sidebar Category filter against 'category' column
+    // Category filter against 'category' column
     if (options?.category) {
-      query = query.ilike('category', `%${options.category}%`);
+      const cat = options.category.trim();
+      query = query.or(`category.ilike.%${cat}%,name.ilike.%${cat}%`);
     }
 
     // Search input filter matching 'name' or 'description' using ilike

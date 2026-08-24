@@ -1,15 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { X, Search, ShoppingBag, Eye, Loader2 } from 'lucide-react';
 import { CATEGORIES } from '../data';
-import { Product, Category } from '../types';
+import { Product } from '../types';
 import { fetchProductsFromDb } from '../lib/supabase';
+import { getCategoryRoute } from './CategoryGrid';
+import { useRouter } from '../lib/router';
 
 interface SearchModalProps {
   isOpen: boolean;
   onClose: () => void;
   onRequestQuoteProduct: (product: Product) => void;
   onQuickViewProduct: (product: Product) => void;
-  onSelectCategory: (category: Category) => void;
 }
 
 export const SearchModal: React.FC<SearchModalProps> = ({
@@ -17,8 +18,8 @@ export const SearchModal: React.FC<SearchModalProps> = ({
   onClose,
   onRequestQuoteProduct,
   onQuickViewProduct,
-  onSelectCategory,
 }) => {
+  const { navigate } = useRouter();
   const [query, setQuery] = useState('');
   const [searchResults, setSearchResults] = useState<Product[]>([]);
   const [isSearching, setIsSearching] = useState(false);
@@ -53,6 +54,12 @@ export const SearchModal: React.FC<SearchModalProps> = ({
     c.name.toLowerCase().includes(query.toLowerCase()) ||
     c.description.toLowerCase().includes(query.toLowerCase())
   );
+
+  const handleCategoryClick = (categoryName: string) => {
+    onClose();
+    const route = getCategoryRoute(categoryName);
+    navigate(route);
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center pt-16 px-4 bg-slate-900/60 backdrop-blur-xs animate-fade-in">
@@ -89,10 +96,7 @@ export const SearchModal: React.FC<SearchModalProps> = ({
                 {filteredCategories.map((c) => (
                   <button
                     key={c.id}
-                    onClick={() => {
-                      onClose();
-                      onSelectCategory(c);
-                    }}
+                    onClick={() => handleCategoryClick(c.name)}
                     className="p-2.5 bg-slate-50 hover:bg-rose-50 border border-slate-200 hover:border-rose-300 rounded-xl text-left transition flex items-center gap-2 cursor-pointer"
                   >
                     <div className="w-2 h-2 rounded-full bg-rose-600" />
@@ -178,4 +182,3 @@ export const SearchModal: React.FC<SearchModalProps> = ({
     </div>
   );
 };
-
