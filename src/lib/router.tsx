@@ -22,12 +22,14 @@ export type AppRoute =
 export interface RouterContextType {
   currentPath: string;
   navigate: (to: string, options?: { replace?: boolean; scrollToTop?: boolean }) => void;
+  push: (to: string, options?: { replace?: boolean; scrollToTop?: boolean }) => void;
   isPathActive: (targetPath: string) => boolean;
 }
 
 const RouterContext = createContext<RouterContextType>({
   currentPath: '/',
   navigate: () => {},
+  push: () => {},
   isPathActive: () => false,
 });
 
@@ -91,7 +93,7 @@ export const RouterProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   }, [currentPath]);
 
   return (
-    <RouterContext.Provider value={{ currentPath, navigate, isPathActive }}>
+    <RouterContext.Provider value={{ currentPath, navigate, push: navigate, isPathActive }}>
       {children}
     </RouterContext.Provider>
   );

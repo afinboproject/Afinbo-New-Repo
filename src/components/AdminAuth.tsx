@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
-import { useAuth } from '../lib/auth';
+import React, { useState } from 'react';
+import { supabase } from '../lib/supabase';
+import { useAuth, verifyPassword, AdminUser } from '../lib/auth';
 import { useRouter } from '../lib/router';
 import {
   ShieldCheck,
@@ -8,110 +9,164 @@ import {
   User,
   Eye,
   EyeOff,
-  CheckCircle2,
   AlertTriangle,
   Loader2,
   ArrowRight,
-  Clock,
   Sparkles,
 } from 'lucide-react';
 
-export type AdminAuthMode = 'signin' | 'signup';
-
 interface AdminAuthProps {
-  initialMode?: AdminAuthMode;
+  initialIsSignUp?: boolean;
   onSuccess?: () => void;
 }
 
-export const AdminAuth: React.FC<AdminAuthProps> = ({ initialMode = 'signin', onSuccess }) => {
-  const { login, signup } = useAuth();
-  const { navigate } = useRouter();
+export const AdminAuth: React.FC<AdminAuthProps> = ({ initialIsSignUp = false, onSuccess }) => {
+  const router = useRouter();
+  const { login } = useAuth();
 
-  const [mode, setMode] = useState<AdminAuthMode>(initialMode);
-  const [showPassword, setShowPassword] = useState(false);
+  // 1. State & View Toggle: boolean isSignUp to toggle between Sign In and Sign Up views
+  const [isSignUp, setIsSignUp] = useState<boolean>(initialIsSignUp);
+  const [showPassword, setShowPassword] = useState<boolean>(false);
 
-  // Form states
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  // Form input fields
+  const [name, setName] = useState<string>('');
+  const [email, setEmail] = useState<string>('');
+  const [password, setPassword] = useState<string>('');
 
-  // Status feedback states
-  const [errorMessage, setErrorMessage] = useState('');
-  const [successMessage, setSuccessMessage] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  // UI state feedback
+  const [errorMessage, setErrorMessage] = useState<string>('');
+  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
 
-  // Inactivity timeout message from previous session if any
-  const [inactivityNotice, setInactivityNotice] = useState<string | null>(() => {
-    try {
-      const reason = sessionStorage.getItem('afinbo_admin_logout_reason');
-      return reason === 'inactivity'
-        ? 'Your administrator session expired after 30 minutes of inactivity. Please sign in again.'
-        : null;
-    } catch {
-      return null;
-    }
-  });
-
-  // Listen to session expiry events
-  useEffect(() => {
-    const handleSessionExpired = () => {
-      setInactivityNotice('Your administrator session expired after 30 minutes of inactivity. Please sign in again.');
-      setMode('signin');
-    };
-    window.addEventListener('afinbo_session_expired', handleSessionExpired);
-    return () => window.removeEventListener('afinbo_session_expired', handleSessionExpired);
-  }, []);
-
-  const clearFeedback = () => {
+  // Reset form errors and password
+  const handleToggleView = (signUpMode: boolean) => {
+    setIsSignUp(signUpMode);
     setErrorMessage('');
-    if (inactivityNotice) setInactivityNotice(null);
-  };
-
-  const handleToggleMode = (newMode: AdminAuthMode) => {
-    setMode(newMode);
-    setErrorMessage('');
-    setSuccessMessage('');
-    if (inactivityNotice) setInactivityNotice(null);
     setPassword('');
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  // 2. Sign Up Handler
+  const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
-    clearFeedback();
+    setErrorMessage('');
+
+    const trimmedName = name.trim();
+    const trimmedEmail = email.trim();
+    const inputPassword = password.trim();
+
+    if (!trimmedName || !trimmedEmail || !inputPassword) {
+      alert('Please fill in all fields (Name, Email, Password).');
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
-      if (mode === 'signup') {
-        // Sign Up Action - strictly register to Supabase and switch to Sign In mode
-        const result = await signup(name, email, password);
+      // Derive username before inserting
+      const generatedUsername = trimmedEmail.split('@')[0];
 
-        if (!result.success) {
-          setErrorMessage(result.error || 'Failed to register.');
-          return; // STOP execution here
-        }
+      // Call Supabase insert directly (database trigger automatically hashes password_hash)
+      const { data, error } = await supabase
+        .from('admin')
+        .insert([
+          {
+            name: trimmedName,
+            email: trimmedEmail,
+            password_hash: inputPassword,
+            username: generatedUsername,
+          },
+        ]);
 
-        // Successfully created account: Clear fields and switch to signin mode
-        setName('');
-        setEmail('');
-        setPassword('');
-        setMode('signin');
-        setSuccessMessage('Account created successfully. Please sign in.');
-      } else {
-        // Sign In Action
-        const result = await login(email, password);
-
-        if (!result.success) {
-          setErrorMessage(result.error || 'Invalid email or password');
-        } else {
-          if (onSuccess) {
-            onSuccess();
-          } else {
-            navigate('/admin');
-          }
-        }
+      if (error) {
+        console.error('Supabase Insert Error:', error);
+        alert('Failed to register: ' + error.message);
+        setErrorMessage(error.message);
+        return; // STOP execution here - DO NOT redirect/navigate
       }
+
+      console.log('Supabase Insert Success:', data);
+      alert('Registration successful! Please sign in.');
+
+      // Clear form state
+      setName('');
+      setEmail('');
+      setPassword('');
+
+      // Switch to Sign In view
+      setIsSignUp(false);
     } catch (err: unknown) {
-      setErrorMessage(err instanceof Error ? err.message : 'An unexpected error occurred. Please try again.');
+      const errMsg = err instanceof Error ? err.message : 'An unexpected error occurred';
+      console.error('Registration Exception:', err);
+      alert('Failed to register: ' + errMsg);
+      setErrorMessage(errMsg);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // 3. Sign In Handler
+  const handleSignIn = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrorMessage('');
+
+    const trimmedEmail = email.trim();
+    const inputPassword = password.trim();
+
+    if (!trimmedEmail || !inputPassword) {
+      setErrorMessage('Please enter both email and password.');
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    try {
+      // Query admin table by email
+      const { data: userRow, error } = await supabase
+        .from('admin')
+        .select('*')
+        .ilike('email', trimmedEmail)
+        .maybeSingle();
+
+      if (error || !userRow) {
+        if (error) console.error('Supabase Query Error:', error);
+        setErrorMessage('Invalid credentials');
+        return; // STOP execution
+      }
+
+      // Password Check against stored hash (handles pgcrypto/bcrypt hash or fallback)
+      const storedHash = (userRow.password_hash ?? userRow.password ?? '') as string;
+      if (!storedHash) {
+        setErrorMessage('Invalid credentials');
+        return;
+      }
+
+      let isMatch = false;
+      const isBcryptFormat = /^\$2[abyx]\$\d{2}\$[./A-Za-z0-9]{53}$/.test(storedHash) || storedHash.startsWith('$2');
+
+      if (isBcryptFormat) {
+        isMatch = await verifyPassword(inputPassword, storedHash);
+      } else {
+        isMatch = (inputPassword === storedHash);
+      }
+
+      if (!isMatch) {
+        setErrorMessage('Invalid credentials');
+        return;
+      }
+
+      // Sync authentication session with App context
+      await login(trimmedEmail, inputPassword);
+
+      // Trigger optional callback
+      if (onSuccess) {
+        onSuccess();
+      }
+
+      // Success Action: Only call router.push('/admin/dashboard') inside the Sign In handler AFTER verification succeeds
+      router.push('/admin/dashboard');
+    } catch (err: unknown) {
+      const errMsg = err instanceof Error ? err.message : 'Invalid credentials';
+      console.error('Sign In Error:', err);
+      setErrorMessage('Invalid credentials');
     } finally {
       setIsSubmitting(false);
     }
@@ -119,15 +174,16 @@ export const AdminAuth: React.FC<AdminAuthProps> = ({ initialMode = 'signin', on
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-4 sm:p-6 selection:bg-rose-100 selection:text-rose-900 font-sans antialiased">
+      {/* Centered Auth Card Component */}
       <div className="relative w-full max-w-md bg-white border border-slate-200/90 rounded-3xl p-8 sm:p-10 shadow-xl shadow-slate-200/60 overflow-hidden">
-        {/* Top brand accent gradient */}
+        {/* Brand accent line */}
         <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-rose-600 via-rose-500 to-blue-600" />
 
-        {/* AFINBO Brand Header */}
+        {/* Brand Header */}
         <div className="text-center mb-6">
           <button
             type="button"
-            onClick={() => navigate('/')}
+            onClick={() => router.push('/')}
             className="inline-flex items-center gap-2.5 group cursor-pointer transition hover:opacity-90"
             title="Return to AFINBO Home Page"
           >
@@ -145,22 +201,22 @@ export const AdminAuth: React.FC<AdminAuthProps> = ({ initialMode = 'signin', on
           </div>
 
           <h2 className="text-xl font-bold text-slate-900 mt-4 tracking-tight">
-            {mode === 'signin' ? 'Welcome Back, Administrator' : 'Create Administrator Account'}
+            {isSignUp ? 'Create Administrator Account' : 'Welcome Back, Administrator'}
           </h2>
           <p className="text-xs text-slate-500 mt-1">
-            {mode === 'signin'
-              ? 'Sign in to access catalog management, RFQ procurement quotes, and logs.'
-              : 'Register an authorized administrator profile to manage the AFINBO platform.'}
+            {isSignUp
+              ? 'Register an authorized administrator profile to manage the AFINBO platform.'
+              : 'Sign in to access catalog management, RFQ procurement quotes, and logs.'}
           </p>
         </div>
 
-        {/* Mode Switcher Tabs */}
+        {/* 1. View Toggle inside one card */}
         <div className="flex bg-slate-100 p-1 rounded-xl mb-6 border border-slate-200/80">
           <button
             type="button"
-            onClick={() => handleToggleMode('signin')}
+            onClick={() => handleToggleView(false)}
             className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all cursor-pointer ${
-              mode === 'signin'
+              !isSignUp
                 ? 'bg-white text-slate-900 shadow-sm border border-slate-200/50'
                 : 'text-slate-500 hover:text-slate-900'
             }`}
@@ -169,9 +225,9 @@ export const AdminAuth: React.FC<AdminAuthProps> = ({ initialMode = 'signin', on
           </button>
           <button
             type="button"
-            onClick={() => handleToggleMode('signup')}
+            onClick={() => handleToggleView(true)}
             className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all cursor-pointer ${
-              mode === 'signup'
+              isSignUp
                 ? 'bg-white text-slate-900 shadow-sm border border-slate-200/50'
                 : 'text-slate-500 hover:text-slate-900'
             }`}
@@ -180,28 +236,7 @@ export const AdminAuth: React.FC<AdminAuthProps> = ({ initialMode = 'signin', on
           </button>
         </div>
 
-        {/* Inactivity Alert */}
-        {inactivityNotice && mode === 'signin' && (
-          <div className="mb-4 text-xs text-amber-800 font-semibold bg-amber-50 p-3.5 rounded-xl border border-amber-200 flex items-start gap-2.5">
-            <Clock className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
-            <div className="flex-1">
-              <p className="font-bold text-amber-900">Session Expired</p>
-              <p className="text-[11px] text-amber-700 mt-0.5">{inactivityNotice}</p>
-            </div>
-          </div>
-        )}
-
-        {/* Success Alert */}
-        {successMessage && (
-          <div className="mb-4 text-xs text-emerald-800 font-semibold bg-emerald-50 p-3.5 rounded-xl border border-emerald-200 flex items-start gap-2.5 animate-in fade-in slide-in-from-top-1 duration-200">
-            <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0 mt-0.5" />
-            <div className="flex-1">
-              <p className="font-bold text-emerald-900">{successMessage}</p>
-            </div>
-          </div>
-        )}
-
-        {/* Error Alert */}
+        {/* Error Alert Display */}
         {errorMessage && (
           <div className="mb-4 text-xs text-rose-800 font-semibold bg-rose-50 p-3.5 rounded-xl border border-rose-200 flex items-start gap-2.5 animate-in fade-in slide-in-from-top-1 duration-200">
             <AlertTriangle className="w-4 h-4 text-rose-600 flex-shrink-0 mt-0.5" />
@@ -211,9 +246,10 @@ export const AdminAuth: React.FC<AdminAuthProps> = ({ initialMode = 'signin', on
           </div>
         )}
 
-        {/* Auth Form */}
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {mode === 'signup' && (
+        {/* Dynamic Auth Form */}
+        <form onSubmit={isSignUp ? handleSignUp : handleSignIn} className="space-y-4">
+          {/* Sign Up Fields: Full Name */}
+          {isSignUp && (
             <div>
               <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
                 Full Name
@@ -226,7 +262,7 @@ export const AdminAuth: React.FC<AdminAuthProps> = ({ initialMode = 'signin', on
                   value={name}
                   onChange={(e) => {
                     setName(e.target.value);
-                    clearFeedback();
+                    setErrorMessage('');
                   }}
                   placeholder="e.g. Engr. Babatunde Lawal"
                   className="w-full pl-10 pr-4 py-3 bg-white border border-slate-300 rounded-xl text-sm font-medium text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-600 transition shadow-2xs"
@@ -235,26 +271,28 @@ export const AdminAuth: React.FC<AdminAuthProps> = ({ initialMode = 'signin', on
             </div>
           )}
 
+          {/* Email Field */}
           <div>
             <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
-              {mode === 'signup' ? 'Work Email' : 'Email or Username'}
+              {isSignUp ? 'Work Email' : 'Email Address'}
             </label>
             <div className="relative">
               <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5" />
               <input
-                type={mode === 'signup' ? 'email' : 'text'}
+                type="email"
                 required
                 value={email}
                 onChange={(e) => {
                   setEmail(e.target.value);
-                  clearFeedback();
+                  setErrorMessage('');
                 }}
-                placeholder={mode === 'signup' ? 'admin@afinbo.com' : 'admin@afinbo.com or admin'}
+                placeholder="admin@afinbo.com"
                 className="w-full pl-10 pr-4 py-3 bg-white border border-slate-300 rounded-xl text-sm font-medium text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-600 transition shadow-2xs"
               />
             </div>
           </div>
 
+          {/* Password Field */}
           <div>
             <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
               Password
@@ -267,7 +305,7 @@ export const AdminAuth: React.FC<AdminAuthProps> = ({ initialMode = 'signin', on
                 value={password}
                 onChange={(e) => {
                   setPassword(e.target.value);
-                  clearFeedback();
+                  setErrorMessage('');
                 }}
                 placeholder="••••••••••••"
                 className="w-full pl-10 pr-11 py-3 bg-white border border-slate-300 rounded-xl text-sm font-medium text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-600 transition shadow-2xs"
@@ -281,13 +319,14 @@ export const AdminAuth: React.FC<AdminAuthProps> = ({ initialMode = 'signin', on
                 {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
               </button>
             </div>
-            {mode === 'signup' && (
+            {isSignUp && (
               <p className="text-[11px] text-slate-400 mt-1">
-                Must be at least 6 characters. Passwords are securely hashed with bcrypt.
+                Must be at least 6 characters. Passwords are automatically encrypted by Supabase.
               </p>
             )}
           </div>
 
+          {/* Submit Action Button */}
           <button
             type="submit"
             disabled={isSubmitting}
@@ -296,12 +335,12 @@ export const AdminAuth: React.FC<AdminAuthProps> = ({ initialMode = 'signin', on
             {isSubmitting ? (
               <>
                 <Loader2 className="w-4 h-4 animate-spin" />
-                <span>{mode === 'signup' ? 'Creating Account...' : 'Authenticating...'}</span>
+                <span>{isSignUp ? 'Creating Account...' : 'Authenticating...'}</span>
               </>
             ) : (
               <>
-                {mode === 'signup' ? <Sparkles className="w-4 h-4" /> : <ArrowRight className="w-4 h-4" />}
-                <span>{mode === 'signup' ? 'Create Admin Account' : 'Sign In to Admin Portal'}</span>
+                {isSignUp ? <Sparkles className="w-4 h-4" /> : <ArrowRight className="w-4 h-4" />}
+                <span>{isSignUp ? 'Create Admin Account' : 'Sign In to Admin Portal'}</span>
               </>
             )}
           </button>
@@ -309,12 +348,12 @@ export const AdminAuth: React.FC<AdminAuthProps> = ({ initialMode = 'signin', on
 
         {/* Bottom Toggle Link */}
         <div className="pt-5 text-center border-t border-slate-100 mt-6">
-          {mode === 'signin' ? (
+          {!isSignUp ? (
             <p className="text-xs text-slate-600">
               Don't have an admin account?{' '}
               <button
                 type="button"
-                onClick={() => handleToggleMode('signup')}
+                onClick={() => handleToggleView(true)}
                 className="text-rose-600 font-bold hover:text-rose-700 hover:underline cursor-pointer transition ml-1"
               >
                 Sign Up
@@ -325,7 +364,7 @@ export const AdminAuth: React.FC<AdminAuthProps> = ({ initialMode = 'signin', on
               Already have an admin account?{' '}
               <button
                 type="button"
-                onClick={() => handleToggleMode('signin')}
+                onClick={() => handleToggleView(false)}
                 className="text-rose-600 font-bold hover:text-rose-700 hover:underline cursor-pointer transition ml-1"
               >
                 Sign In
@@ -336,7 +375,7 @@ export const AdminAuth: React.FC<AdminAuthProps> = ({ initialMode = 'signin', on
           <div className="mt-4">
             <button
               type="button"
-              onClick={() => navigate('/')}
+              onClick={() => router.push('/')}
               className="text-xs text-slate-400 hover:text-slate-700 transition font-medium cursor-pointer inline-flex items-center gap-1"
             >
               <span>&larr; Return to Public Website</span>
@@ -349,7 +388,7 @@ export const AdminAuth: React.FC<AdminAuthProps> = ({ initialMode = 'signin', on
       <div className="mt-6 text-center text-slate-400 text-[11px] flex items-center justify-center gap-2">
         <span>AFINBO Nigeria Telecoms</span>
         <span>•</span>
-        <span>256-Bit Bcrypt Encrypted</span>
+        <span>Supabase Trigger Encrypted</span>
       </div>
     </div>
   );

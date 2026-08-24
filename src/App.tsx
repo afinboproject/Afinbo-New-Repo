@@ -143,6 +143,7 @@ function AppContent() {
         );
 
       case '/admin':
+      case '/admin/dashboard':
       case '/login':
         return (
           <main>
